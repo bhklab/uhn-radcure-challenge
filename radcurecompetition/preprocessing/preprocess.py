@@ -14,6 +14,8 @@ class RadcurePipeline(Pipeline):
                  output_directory,
                  id_mapping_path,
                  roi_names=["GTV"],
+                 train_size=.7,
+                 save_splits_path="../../data/splits.csv",
                  n_jobs=-1,
                  show_progress=True):
 
@@ -23,6 +25,8 @@ class RadcurePipeline(Pipeline):
         self.output_directory = output_directory
         self.id_mapping_path = id_mapping_path
         self.roi_names = roi_names
+        self.train_size = train_size
+        self.save_splits_path = save_splits_path
 
         self.image_input = ImageFileInput(
             self.input_directory,
@@ -40,25 +44,45 @@ class RadcurePipeline(Pipeline):
 
         self.image_output = ImageFileOutput(
             os.path.join(self.output_directory, "images"),
-            filename_format="{subject_id}.nrrd",
+            filename_format="{split}/{subject_id}.nrrd",
             create_dirs=True,
             compress=True)
-        self.mask_output = ImageFileOutput(os.path.join(self.output_directory, "masks"),
-                                           filename_format="{subject_id.nrrd",
-                                           create_dirs=True,
-                                           compress=True)
+        self.mask_output = ImageFileOutput(
+            os.path.join(self.output_directory, "masks"),
+            filename_format="{split}/{subject_id}.nrrd",
+            create_dirs=True,
+            compress=True)
 
-        self.id_mapping = pd.read_csv(self.id_mapping_path,
-                                      usecols=["MRN, Study ID"],
-                                      index_col="MRN")
+        id_mapping = pd.read_csv(self.id_mapping_path,
+                                 usecols=["MRN", "Study ID", "Date of dx"],
+                                 index_col="MRN")
+        self.id_mapping = self.split_by_date(id_mapping)
+        if self.save_splits_path:
+            self.id_mapping[["Study ID", "split"]].to_csv(self.save_splits_path, index=False)
+
+
+    def split_by_date(self, id_mapping):
+        id_mapping["Date of dx"] = pd.to_datetime(id_mapping["Date of dx"])
+        cases_per_month = id_mapping.set_index("Date of dx").groupby(pd.Grouper(freq="M")).size()
+
+        # compute the cumulative % of total cases in each month
+        cumulative_freqs = cases_per_month.cumsum() / cases_per_month.sum()
+        # find the lowest date with >= train_size % data
+        split_date = cumulative_freqs[cumulative_freqs >= self.train_size].index[0]
+
+        id_mapping["split"] = np.where(id_mapping["Date of dx"] < split_date, "train", "test")
+
+        return id_mapping
+
 
     def process_one_subject(self, subject_id):
         image, rtstruct = self.image_input(subject_id), self.image_input(subject_id)
         mask = self.make_binary_mask(rtstruct, image)
 
         new_subject_id = self.id_mapping.loc[subject_id, "Study ID"]
-        self.image_output(new_subject_id, image)
-        self.mask_output(new_subject_id, mask)
+        split = self.id_mapping.loc[subject_id, "split"]
+        self.image_output(new_subject_id, image split=split)
+        self.mask_output(new_subject_id, mask, split=split)
 
 
 def main():
@@ -74,12 +98,20 @@ def main():
     parser.add_argument(
         "id_mapping_path",
         type=str,
-        help="Path to CSV file with a 'MRN' column containing the original patient IDs and 'Study ID' column containing the corresponding de-identified IDs."
-    )
+        help="Path to CSV file with a 'MRN' column containing the original patient IDs and 'Study ID' column containing the corresponding de-identified IDs.")
     parser.add_argument("--roi_names",
                         nargs="*",
                         default=["GTV"],
                         help="List of ROI names to extract.")
+    parser.add_argument("--train_size",
+                        type=float,
+                        default=.7,
+                        help="Fraction of data to use as the training set.")
+    parser.add_argument(
+        "--save_splits_path",
+        type=str,
+        default="../../data/splits.csv",
+        help="Path to CSV file where the training/test split information for each subject will be saved.")
     parser.add_argument("--n_jobs",
                         type=int,
                         default=-1,
@@ -93,6 +125,8 @@ def main():
                                args.output_directory,
                                args.id_mapping_path,
                                roi_names=args.roi_names,
+                               train_size=args.train_size,
+                               save_splits_path=args.save_splits_path,
                                n_jobs=args.n_jobs,
                                show_progress=args.show_progress)
     pipeline.run()
