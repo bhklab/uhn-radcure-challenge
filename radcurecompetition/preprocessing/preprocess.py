@@ -81,7 +81,7 @@ class RadcurePipeline(Pipeline):
 
         new_subject_id = self.id_mapping.loc[subject_id, "Study ID"]
         split = self.id_mapping.loc[subject_id, "split"]
-        self.image_output(new_subject_id, image split=split)
+        self.image_output(new_subject_id, image, split=split)
         self.mask_output(new_subject_id, mask, split=split)
 
 
