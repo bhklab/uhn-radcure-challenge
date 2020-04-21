@@ -25,7 +25,7 @@ class RadcurePipeline(Pipeline):
                  input_directory: str,
                  output_directory: str,
                  clinical_data_path: str,
-                 roi_names: List[str] = ["GTV"],
+                 roi_names: List[str] = ["GTV", "HTV"],
                  train_size: float = .7,
                  save_clinical_path: Optional[str] = "../../data/splits.csv",
                  n_jobs: int = -1,
@@ -50,15 +50,9 @@ class RadcurePipeline(Pipeline):
             The fraction of the dataset to use for training.
 
         save_clinical_path
-            Path where the preprocessed clinical data will be saved.
-
-        n_jobs
-            Number of parallel processes to use.
-
-        show_progress
-            Print progress updates to stdout.
+            Path   Print progress updates to stdout.
         """
-        super().__init__(n_jobs=n_jobs, show_progress=show_progress)
+        super().__init__(n_jobs=n_jobs, show_progress=show_progress, warn_on_error=True)
 
         self.input_directory = input_directory
         self.output_directory = output_directory
@@ -257,7 +251,7 @@ def main():
         help="Path to CSV file with clinical data.")
     parser.add_argument("--roi_names",
                         nargs="*",
-                        default=["GTV"],
+                        default=["GTV", "HTV"],
                         help="List of ROI names to extract.")
     parser.add_argument("--train_size",
                         type=float,
