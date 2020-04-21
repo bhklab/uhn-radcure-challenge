@@ -133,8 +133,8 @@ class RadcurePipeline(Pipeline):
 
         data["has_image"] = (data["MRN"].isin(images)) & (data["MRN"].isin(rtstructs))
 
-        data["image_path"] = [glob.glob(os.path.join(self.input_directory, mrn, "*", "ImageSet*")) for mrn in data["MRN"]]
-        data["rtstruct_path"] = [glob.glob(os.path.join(self.input_directory, mrn, "*", "structures", "RTSTRUCT*")) for mrn in data["MRN"]]
+        data["image_path"] = [glob.glob(os.path.join(self.input_directory, str(mrn), "*", "ImageSet*")) for mrn in data["MRN"]]
+        data["rtstruct_path"] = [glob.glob(os.path.join(self.input_directory, str(mrn), "*", "structures", "RTSTRUCT*")) for mrn in data["MRN"]]
 
         # exclusion criteria:
         # - missing image or RTSTRUCT
@@ -162,6 +162,7 @@ class RadcurePipeline(Pipeline):
         data["Chemotherapy"] = data["Chemotherapy"].map(lambda x: 0 if "none" in x.lower() else 1, na_action="ignore")
         data["Disease Site"] = data["Disease Site"].str.lower()
         data["HPV Combined"] = data["HPV Combined"].map({"Yes, positive": 1, "Yes, Negative": 0})
+        data["Stage"] = data["Stage-7th"]
 
         data = data[[
             "MRN",
@@ -172,9 +173,9 @@ class RadcurePipeline(Pipeline):
             "survival_time",
             "death",
             "age at dx",
-            "sex",
-            "T stage",
-            "N stage",
+            "Sex",
+            "T Stage",
+            "N Stage",
             "Stage",
             "Dose",
             "Chemotherapy",
@@ -238,9 +239,9 @@ def main():
         type=str,
         help="Path to directory where the processed dataset will be saved.")
     parser.add_argument(
-        "id_mapping_path",
+        "clinical_data_path",
         type=str,
-        help="Path to CSV file with a 'MRN' column containing the original patient IDs and 'Study ID' column containing the corresponding de-identified IDs.")
+        help="Path to CSV file with clinical data.")
     parser.add_argument("--roi_names",
                         nargs="*",
                         default=["GTV"],
@@ -265,7 +266,7 @@ def main():
     args = parser.parse_args()
     pipeline = RadcurePipeline(args.input_directory,
                                args.output_directory,
-                               args.id_mapping_path,
+                               args.clinical_data_path,
                                roi_names=args.roi_names,
                                train_size=args.train_size,
                                save_clinical_path=args.save_clinical_path,
