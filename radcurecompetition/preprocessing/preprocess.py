@@ -114,8 +114,6 @@ class RadcurePipeline(Pipeline):
         pd.DataFrame
             The processed clinical data."""
         data = pd.read_csv(self.clinical_data_path)
-        images = os.listdir(self.input_directory)
-        rtstructs = [i for i in images if glob.glob(os.path.join(self.input_directory, i, "*", "*", "RTSTRUCT*"))]
 
         sites = [
             "Oropharynx",
@@ -131,10 +129,23 @@ class RadcurePipeline(Pipeline):
             "Salivary Glands"
         ]
 
-        data["has_image"] = (data["MRN"].isin(images)) & (data["MRN"].isin(rtstructs))
 
-        data["image_path"] = [glob.glob(os.path.join(self.input_directory, str(mrn), "*", "ImageSet*")) for mrn in data["MRN"]]
-        data["rtstruct_path"] = [glob.glob(os.path.join(self.input_directory, str(mrn), "*", "structures", "RTSTRUCT*")) for mrn in data["MRN"]]
+        image_paths = []
+        rtstruct_paths = []
+        for mrn in data["MRN"]:
+            try:
+                image_path = glob.glob(os.path.join(self.input_directory, str(mrn), "*", "ImageSet*"))[0]
+            except IndexError:
+                image_path = None
+
+            try:
+                rtstruct_path = glob.glob(os.path.join(self.input_directory, str(mrn), "*", "structures", "RTSTRUCT*"))[0]
+            except IndexError:
+                rtstruct_path = None
+           image_paths.append(image_path)
+           rtstruct_paths.append(rtstruct_path)
+
+        data["has_image"] = (~data["image_path"].isnull()) & (~data["rstruct_path"].isnull())
 
         # exclusion criteria:
         # - missing image or RTSTRUCT
