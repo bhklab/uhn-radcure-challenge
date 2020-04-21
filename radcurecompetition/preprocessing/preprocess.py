@@ -69,7 +69,7 @@ class RadcurePipeline(Pipeline):
 
         self.clinical_data = self.load_clinical_data()
         if self.save_clinical_path:
-            self.clinical_data.drop("MRN", axis=1).to_csv(self.save_clinical_path, index=False)
+            self.clinical_data.drop(["image_path", "rtstruct_path"], axis=1).to_csv(self.save_clinical_path, index=False)
 
         # self.image_input = ImageFileInput(
         #     self.input_directory,
@@ -101,7 +101,7 @@ class RadcurePipeline(Pipeline):
             create_dirs=True,
             compress=True)
 
-        self.clinical_data = self.clinical_data.set_index("MRN")
+        self.clinical_data = self.clinical_data.set_index("Study ID")
 
     def load_clinical_data(self) -> pd.DataFrame:
         """Load and preprocess the clinical data.
@@ -142,10 +142,13 @@ class RadcurePipeline(Pipeline):
                 rtstruct_path = glob.glob(os.path.join(self.input_directory, str(mrn), "*", "structures", "RTSTRUCT*"))[0]
             except IndexError:
                 rtstruct_path = None
-           image_paths.append(image_path)
-           rtstruct_paths.append(rtstruct_path)
 
-        data["has_image"] = (~data["image_path"].isnull()) & (~data["rstruct_path"].isnull())
+            image_paths.append(image_path)
+            rtstruct_paths.append(rtstruct_path)
+
+        data["image_path"] = image_paths
+        data["rtstruct_path"] = rtstruct_paths
+        data["has_image"] = (~data["image_path"].isnull()) & (~data["rtstruct_path"].isnull())
 
         # exclusion criteria:
         # - missing image or RTSTRUCT
@@ -176,7 +179,6 @@ class RadcurePipeline(Pipeline):
         data["Stage"] = data["Stage-7th"]
 
         data = data[[
-            "MRN",
             "Study ID",
             "image_path",
             "rtstruct_path",
@@ -233,10 +235,9 @@ class RadcurePipeline(Pipeline):
         image, rtstruct = self.image_input(subject_id)
         mask = self.make_binary_mask(rtstruct, image)
 
-        new_subject_id = self.clinical_data.loc[subject_id, "Study ID"]
         split = self.clinical_data.loc[subject_id, "split"]
-        self.image_output(new_subject_id, image, split=split)
-        self.mask_output(new_subject_id, mask, split=split)
+        self.image_output(subject_id, image, split=split)
+        self.mask_output(subject_id, mask, split=split)
 
 
 def main():
