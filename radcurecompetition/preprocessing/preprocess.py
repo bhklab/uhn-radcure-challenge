@@ -91,13 +91,13 @@ class RadcurePipeline(Pipeline):
             roi_names=self.roi_names)
 
         self.image_output = ImageFileOutput(
-            os.path.join(self.output_directory, "images"),
-            filename_format="{split}/{subject_id}.nrrd",
+            self.output_directory,
+            filename_format="{split}/images/{subject_id}.nrrd",
             create_dirs=True,
             compress=True)
         self.mask_output = ImageFileOutput(
-            os.path.join(self.output_directory, "masks"),
-            filename_format="{split}/{subject_id}.nrrd",
+            self.output_directory,
+            filename_format="{split}/masks/{subject_id}.nrrd",
             create_dirs=True,
             compress=True)
 
@@ -107,7 +107,8 @@ class RadcurePipeline(Pipeline):
         """Load and preprocess the clinical data.
 
         This method will exclude cases not meeting the inclusion criteria, find
-        image and RTSTRUCT paths and clean up the clinical variables.
+        image and RTSTRUCT paths, clean up the clinical variables and split the
+        data into training and validation subsets.
 
         Returns
         -------
@@ -161,8 +162,7 @@ class RadcurePipeline(Pipeline):
             data["Disease Site"].isin(sites) &
             ((data["Length FU"] >= 2) | (data["Status Last Follow Up"] == "Dead")) &
             (data["M Stage"] == "M0") &
-            (data["Tx Intent"] != "post-op") &
-            ~(data["Date of death"].isnull())
+            (data["Tx Intent"] != "post-op")
         )]
 
         data = self.split_by_date(data)
@@ -180,6 +180,7 @@ class RadcurePipeline(Pipeline):
 
         data = data[[
             "Study ID",
+            "split",
             "image_path",
             "rtstruct_path",
             "target_binary",
