@@ -25,7 +25,7 @@ class RadcurePipeline(Pipeline):
                  input_directory: str,
                  output_directory: str,
                  clinical_data_path: str,
-                 roi_names: List[str] = ["GTV", "HTV"],
+                 roi_names: List[str] = ["GTV*", "HTV"],
                  train_size: float = .7,
                  save_clinical_path: Optional[str] = "../../data/splits.csv",
                  n_jobs: int = -1,
@@ -251,7 +251,7 @@ def main():
         help="Path to CSV file with clinical data.")
     parser.add_argument("--roi_names",
                         nargs="*",
-                        default=["GTV", "HTV"],
+                        default=["GTV*", "HTV"],
                         help="List of ROI names to extract.")
     parser.add_argument("--train_size",
                         type=float,
