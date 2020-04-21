@@ -1,6 +1,7 @@
 import os
 import glob
 from argparse import ArgumentParser
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -11,16 +12,52 @@ from imgtools.io import read_dicom_series, read_dicom_rtstruct
 
 
 class RadcurePipeline(Pipeline):
+    """This pipeline can be used to preprocess and anonymize the images and
+    clinical data using the RADCURE challenge specifications. Specifically the
+    pipeline can:
+        - automatically exclude ineligible patients
+        - select and clean up the clinical variables
+        - convert images from DICOM to NRRD
+        - generate primary GTV binary masks and save in NRRD format
+        - split the dataset into training and validation subsets.
+    """
     def __init__(self,
-                 input_directory,
-                 output_directory,
-                 clinical_data_path,
-                 roi_names=["GTV"],
-                 train_size=.7,
-                 save_splits_path="../../data/splits.csv",
-                 n_jobs=-1,
-                 show_progress=True):
+                 input_directory: str,
+                 output_directory: str,
+                 clinical_data_path: str,
+                 roi_names: List[str] = ["GTV"],
+                 train_size: float = .7,
+                 save_clinical_path: Optional[str] = "../../data/splits.csv",
+                 n_jobs: int = -1,
+                 show_progress: bool = True):
+        """Initialize the pipeline.
 
+        Parameters
+        ----------
+        input_directory
+            Path to directory containing the RADCURE images.
+
+        output_directory
+            Path to directory where the preprocessed images will be saved.
+
+        clinical_data_path
+            Path to CSV file containing RADCURE clinical data.
+
+        roi_names
+            List of ROI names to convert to binary masks.
+
+        train_size
+            The fraction of the dataset to use for training.
+
+        save_clinical_path
+            Path where the preprocessed clinical data will be saved.
+
+        n_jobs
+            Number of parallel processes to use.
+
+        show_progress
+            Print progress updates to stdout.
+        """
         super().__init__(n_jobs=n_jobs, show_progress=show_progress)
 
         self.input_directory = input_directory
@@ -28,11 +65,11 @@ class RadcurePipeline(Pipeline):
         self.clinical_data_path = clinical_data_path
         self.roi_names = roi_names
         self.train_size = train_size
-        self.save_splits_path = save_splits_path
+        self.save_clinical_path = save_clinical_path
 
         self.clinical_data = self.load_clinical_data()
-        if self.save_splits_path:
-            self.clinical_data.drop("MRN", axis=1).to_csv(self.save_splits_path, index=False)
+        if self.save_clinical_path:
+            self.clinical_data.drop("MRN", axis=1).to_csv(self.save_clinical_path, index=False)
 
         # self.image_input = ImageFileInput(
         #     self.input_directory,
@@ -66,7 +103,16 @@ class RadcurePipeline(Pipeline):
 
         self.clinical_data = self.clinical_data.set_index("MRN")
 
-    def load_clinical_data(self):
+    def load_clinical_data(self) -> pd.DataFrame:
+        """Load and preprocess the clinical data.
+
+        This method will exclude cases not meeting the inclusion criteria, find
+        image and RTSTRUCT paths and clean up the clinical variables.
+
+        Returns
+        -------
+        pd.DataFrame
+            The processed clinical data."""
         data = pd.read_csv(self.clinical_data_path)
         images = os.listdir(self.input_directory)
         rtstructs = [i for i in images if glob.glob(os.path.join(self.input_directory, i, "*", "*", "RTSTRUCT*"))]
@@ -139,7 +185,19 @@ class RadcurePipeline(Pipeline):
         return data
 
 
-    def split_by_date(self, data):
+    def split_by_date(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Split the dataset into training and validation subsets.
+
+        This method will add a new column named 'split' containing the subset
+        membership for each subject. Splitting is performed by date of
+        diagnosis. The split date is chosen so that at least `self.train_size`
+        subjects are in the training set.
+
+        Returns
+        -------
+        pd.DataFrame
+            The updated dataset.
+        """
         data["Date of dx"] = pd.to_datetime(data["Date of dx"])
         cases_per_month = data.set_index("Date of dx").groupby(pd.Grouper(freq="M")).size()
 
@@ -148,12 +206,18 @@ class RadcurePipeline(Pipeline):
         # find the lowest date with >= train_size % data
         split_date = cumulative_freqs[cumulative_freqs >= self.train_size].index[0]
 
-        data["split"] = np.where(data["Date of dx"] < split_date, "train", "test")
+        data["split"] = np.where(data["Date of dx"] <= split_date, "training", "validation")
 
         return data
 
 
-    def process_one_subject(self, subject_id):
+    def process_one_subject(self, subject_id: str):
+        """Preprocess the image and segmentation of one subject.
+
+        Parameters
+        ----------
+        subject_id
+            The ID of the currently processed subject."""
         image, rtstruct = self.image_input(subject_id)
         mask = self.make_binary_mask(rtstruct, image)
 
@@ -186,7 +250,7 @@ def main():
                         default=.7,
                         help="Fraction of data to use as the training set.")
     parser.add_argument(
-        "--save_splits_path",
+        "--save_clinical_path",
         type=str,
         default="../../data/splits.csv",
         help="Path to CSV file where the training/test split information for each subject will be saved.")
@@ -204,7 +268,7 @@ def main():
                                args.id_mapping_path,
                                roi_names=args.roi_names,
                                train_size=args.train_size,
-                               save_splits_path=args.save_splits_path,
+                               save_clinical_path=args.save_clinical_path,
                                n_jobs=args.n_jobs,
                                show_progress=args.show_progress)
     pipeline.run()
