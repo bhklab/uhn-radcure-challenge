@@ -1,10 +1,13 @@
 import os
 import glob
+import re
 from argparse import ArgumentParser
 from typing import List, Optional
+from itertools import chain
 
 import numpy as np
 import pandas as pd
+from pydicom import dcmread
 
 from imgtools.pipeline import Pipeline
 from imgtools.ops import ImageCSVInput, ImageFileOutput, MetadataOutput, StructureSetToSegmentation
@@ -97,6 +100,7 @@ class RadcurePipeline(Pipeline):
 
         self.clinical_data = self.clinical_data.set_index("Study ID")
 
+
     def load_clinical_data(self) -> pd.DataFrame:
         """Load and preprocess the clinical data.
 
@@ -135,6 +139,10 @@ class RadcurePipeline(Pipeline):
 
             try:
                 rtstruct_path = glob.glob(os.path.join(self.input_directory, str(mrn), "*", "structures", "RTSTRUCT*"))[0]
+                rtstruct = dcmread(rtstruct_path, stop_before_pixels=True)
+                roi_names = [roi.ROIName for roi in rtstruct.StructureSetROISequence]
+                if not any(chain.from_iterable((name for name in roi_names if re.fullmatch(pat, name, flags=re.IGNORECASE)) for pat in self.roi_names)):
+                    rtstruct_path = None
             except IndexError:
                 rtstruct_path = None
 
