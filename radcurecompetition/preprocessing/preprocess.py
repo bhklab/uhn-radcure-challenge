@@ -138,7 +138,7 @@ class RadcurePipeline(Pipeline):
                 image_path = None
 
             try:
-                rtstruct_path = glob.glob(os.path.join(self.input_directory, str(mrn), "*", "structures", "RTSTRUCT*"))[0]
+                rtstruct_path = glob.glob(os.path.join(self.input_directory, str(mrn), "*", "structures", "RTSTRUCT*.dcm"))[0]
                 rtstruct = dcmread(rtstruct_path, stop_before_pixels=True)
                 roi_names = [roi.ROIName for roi in rtstruct.StructureSetROISequence]
                 if not any(chain.from_iterable((name for name in roi_names if re.fullmatch(pat, name, flags=re.IGNORECASE)) for pat in self.roi_names)):
