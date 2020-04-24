@@ -51,7 +51,7 @@ class SelectMRMR(BaseEstimator):
         return f"SelectMRMR(n_features={self.n_features}, var_prefilter_thresh={self.var_prefilter_thresh})"
 
 
-class BinaryBaseline:
+class BinaryModel:
     """Baseline model for binary classification task.
 
     This class uses penalized binary logistic regression as the estimator. The
@@ -85,7 +85,7 @@ class BinaryBaseline:
         else:
             self.model = make_pipeline(transformer, logistic)
 
-    def train(self, X: pd.DataFrame, y: pd.DataFrame) -> "BinaryBaseline":
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "BinaryBaseline":
         """Train the model.
 
         This method returns `self` to make method chaining easier.
@@ -127,7 +127,7 @@ class BinaryBaseline:
         return self.model.predict_proba(X)
 
 
-class SurvivalBaseline:
+class SurvivalModel:
     """Baseline model for survival prediction task.
 
     This class uses penalized Cox proportional hazard regression as the
@@ -162,7 +162,7 @@ class SurvivalBaseline:
             pipe = make_pipeline(transformer, CoxRegression())
         self.model = GridSearchCV(pipe, param_grid, n_jobs=self.n_jobs)
 
-    def train(self, X: pd.DataFrame, y: pd.DataFrame) -> "SurvivalBaseline":
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "SurvivalBaseline":
         """Train the model.
 
         This method returns `self` to make method chaining easier. Note that
@@ -187,21 +187,19 @@ class SurvivalBaseline:
         self.model.fit(X, y)
         return self
 
-    def predict(self, X: pd.DataFrame, time: bool = False):
+    def predict(self, X: pd.DataFrame):
         """Generate predictions for new data.
 
         This method outputs the predicted partial hazard values for each row
         in `X`. The partial hazard is computed as
         :math: `-\exp(X - \text{mean}(X_{\text{train}}\beta))` and corresponds
-        to `type="risk"`in R's `coxph`. Alternatively, if `time == True`, return
+        to `type="risk"`in R's `coxph`. Additionally, it computes
         the predicted survival function for each subject in X.
 
         Parameters
         ----------
         X
             Prediction inputs with samples as rows and features as columns.
-        time
-            Whether to predict time-to-event for each sample.
 
         Returns
         -------
@@ -209,13 +207,70 @@ class SurvivalBaseline:
             Predictions for each row in `X`.
 
         """
-        if time:
-            # We need to change the predict method of the lifelines model
-            # while still running the whole pipeline.
-            # This is a somewhat ugly hack, there might be a better way to do it
-            setattr(self.model.named_steps["coxregression"], "_predict_method", "predict_survival_function")
-            pred = self.model.predict(X)
-            setattr(self.model.named_steps["coxregression"], "_predict_method", "predict_partial_hazard")
+        # We need to change the predict method of the lifelines model
+        # while still running the whole pipeline.
+        # This is a somewhat ugly hack, there might be a better way to do it.
+        setattr(self.model.named_steps["coxregression"], "_predict_method", "predict_survival_function")
+        pred_surv = self.model.predict(X)
+        setattr(self.model.named_steps["coxregression"], "_predict_method", "predict_partial_hazard")
+        pred_risk = -self.model.predict(X)
+        return pred_risk, pred_surv
+
+
+class SimpleBaseline:
+    def __init__(self, data_path, max_features_to_select=10, colnames=[]):
+        self.data_path = data_path
+        self.binary_model = BinaryModel(max_features_to_select=max_features_to_select)
+        self.survival_model = SurvivalModel(max_features_to_select=max_features_to_select)
+        self.colnames = colnames
+
+        self.data_train, self.data_valid = self.load_data()
+
+    def load_data(self):
+        data = pd.read_csv(self.data_path)
+        if not self.colnames:
+            columns = [c for c in data.columns if c not in ["Study ID", "split"]]
+        elif isinstance(self.colnames, list):
+            columns = self.colnames
+        elif isinstance(self.colnames, str):
+            columns = data.filter(regex=self.colnames)
         else:
-            pred = -self.model.predict(X)
-        return pred
+            raise ValueError(f"Column names must be a list, str or None, got {self.colnames}.")
+
+        for target in ["target_binary", "survival_time", "death"]:
+            if target not in columns:
+                columns.append(target)
+
+        data_train, data_valid = data[data["split"] == "training"], data[data["split"] == "validation"]
+        return data_train[columns], data_valid[columns]
+
+    def _predict(self, target):
+        X_train = self.data_train.drop(["target_binary", "survival_time", "death"], axis=1)
+        X_valid = self.data_valid.drop(["target_binary", "survival_time", "death"], axis=1)
+        if target == "binary":
+            y_train = self.data_train.pop("target_binary")
+            y_valid = self.data_valid.pop("target_binary")
+            model = self.binary_model
+        elif target == "survival":
+            y_train = self.data_train.pop("survival_time")
+            y_valid = self.data_valid.pop("survival_time"), self.data_valid.pop("death")
+            model = self.survival_model
+        model.train(X_train, y_train)
+        y_pred = model.predict(X_valid)
+        return y_valid, y_pred
+
+    def get_test_predictions(self):
+        true_binary, pred_binary = self._predict("binary")
+        (true_event, true_time), (pred_event, pred_time) = self._predict("survival")
+
+        true = {
+            "binary": true_binary,
+            "survival_event": true_event,
+            "survival_time": true_time
+        }
+        pred = {
+            "binary": pred_binary,
+            "survival_event": pred_event,
+            "survival_time": pred_time
+        }
+        return true, pred
