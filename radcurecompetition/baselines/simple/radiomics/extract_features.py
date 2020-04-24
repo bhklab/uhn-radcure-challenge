@@ -1,5 +1,5 @@
-import glob
 import os
+import tempfile
 import subprocess
 from argparse import ArgumentParser
 
@@ -12,16 +12,19 @@ def extract_features(image_directory, id_split_path, output_path, params_file, n
         image_directory, x["split"], "images", x["Study ID"] + ".nrrd"), axis=1)
     data["Mask"] = data.apply(lambda x: os.path.join(
         image_directory, x["split"], "masks", x["Study ID"] + ".nrrd"), axis=1)
-    data.to_csv(output_path)
+    tmp_path = os.path.join(tempfile.gettempdir(), "radiomics.csv")
+    data.to_csv(tmp_path, index=False) # this is necessary since pyradiomics won't
+                                       # overwrite an existing file for some reason
     command = [
         "pyradiomics",
-        output_path,
+        tmp_path,
         "-o", output_path,
         "-f", "csv",
         "--jobs", str(n_jobs),
         "--param", params_file
     ]
     subprocess.run(command)
+    os.remove(tmp_path)
 
 
 if __name__ == "__main__":
@@ -29,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("image_directory",
                         type=str,
                         help="Path to directory containing images and segmentation masks.")
-    parser.add_argument("id_split_data_path",
+    parser.add_argument("id_split_path",
                         type=str,
                         help="Path to CSV file containing subject IDs and split information.")
     parser.add_argument("--output_path", "-o",
