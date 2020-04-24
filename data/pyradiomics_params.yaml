@@ -1,0 +1,12 @@
+imageType:
+    Original: {}
+    Wavelet: {}
+    Square: {}
+    SquareRoot: {}
+    Logarithm: {}
+    Exponential: {}
+    Gradient: {}
+
+setting:
+    binWidth: 25
+    resampledPixelSpacing: [1., 1., 1.]
