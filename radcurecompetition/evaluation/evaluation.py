@@ -95,14 +95,14 @@ def integrated_brier_score(time_true: np.ndarray,
     # compute weights for inverse probability of censoring weighting (IPCW)
     censoring_km = KaplanMeierFitter()
     censoring_km.fit(time_true, 1 - event_observed)
-    weights_event = censoring_km.survival_function_at_times(time_true).reshape(-1, 1)
-    weights_no_event = censoring_km.survival_function_at_times(time_bins).reshape(1, -1)
+    weights_event = censoring_km.survival_function_at_times(time_true).values.reshape(-1, 1)
+    weights_no_event = censoring_km.survival_function_at_times(time_bins).values.reshape(1, -1)
 
     # scores for subjects with event before time t for each time bin
     had_event = (time_true[:, np.newaxis] <= time_bins) & event_observed[:, np.newaxis]
-    scores_event = np.where(had_event, (0 - time_pred)^2 / weights_event, 0)
+    scores_event = np.where(had_event, (0 - time_pred)**2 / weights_event, 0)
     # scores for subjects with no event and no censoring before time t for each time bin
-    scores_no_event = np.where((time_true[:, np.newaxis] > time_bins), (1 - time_pred)^2 / weights_no_event, 0)
+    scores_no_event = np.where((time_true[:, np.newaxis] > time_bins), (1 - time_pred)**2 / weights_no_event, 0)
 
     scores = np.mean(scores_event + scores_no_event, axis=0)
 
@@ -113,6 +113,7 @@ def integrated_brier_score(time_true: np.ndarray,
 
 def evaluate_binary(y_true: np.ndarray,
                     y_pred: np.ndarray,
+                    threshold: float = .5,
                     n_permutations : int = 5000,
                     n_jobs : int = -1) -> Dict:
     """Compute performance metrics for a set of binary predictions.
@@ -128,6 +129,9 @@ def evaluate_binary(y_true: np.ndarray,
         The true binary class labels (1=positive class).
     y_pred : np.ndarray, shape=(n_samples,)
         The predicted class probablities/scores.
+    threshold, optional
+        The classification threshold for model outputs. Only used
+        for computing the confusion matrix.
     n_permutations, optional
         How many random permutations to use. Larger values give more
         accurate estimates but take longer to run.
@@ -140,7 +144,10 @@ def evaluate_binary(y_true: np.ndarray,
         The computed performance metrics.
     """
 
-    conf_matrix = confusion_matrix(y_true, y_pred)
+    if y_pred.ndim == 2:
+        y_pred = y_pred[:, 1]
+
+    conf_matrix = confusion_matrix(y_true, y_pred > threshold)
     auc, auc_pval = permutation_test(y_true, y_pred,
                                      roc_auc_score, n_permutations, n_jobs)
     avg_prec, avg_prec_pval = permutation_test(y_true, y_pred,
@@ -206,9 +213,11 @@ def evaluate_survival(event_true: np.ndarray,
         time_bins = np.linspace(1, 2, 23)
         if time_pred.shape[1] != len(time_bins):
             raise ValueError((f"Expected predictions at {len(time_bins)}"
-                              f"timepoints, got {time_pred.shape[1]}."))
-        brier, brier_pval = integrated_brier_score(time_true, time_pred,
-                                                   event_true, time_bins)
+                              f" timepoints, got {time_pred.shape[1]}."))
+        brier, brier_pval = permutation_test(time_true, time_pred,
+                                             integrated_brier_score,
+                                             event_observed=event_true,
+                                             time_bins=time_bins)
 
     return {
         "concordance_index": ci,
