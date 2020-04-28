@@ -17,21 +17,35 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
 class SelectMRMR(BaseEstimator):
-    def __init__(self, n_features=10, var_prefilter_thresh=0.):
+    def __init__(self, n_features=10, var_prefilter_thresh=0., target_col=None):
         self.n_features = n_features
         self.var_prefilter_thresh = var_prefilter_thresh
+        self.target_col = target_col
 
-    def fit(self, X, y):
+    def fit(self, X, y=None):
         X_select = X.copy()
+        if not isinstance(X_select, pd.DataFrame):
+            X_select = pd.DataFrame(X_select)
+            if isinstance(y, (pd.DataFrame, pd.Series)):
+                X_select = X_select.set_index(y.index)
+
         if self.var_prefilter_thresh > 0:
             X_select = X_select.loc[:, X_select.var(axis=0) > self.var_prefilter_thresh]
-        X_select["target"] = y
-        if issubclass(y.dtype, np.integer):
+
+        if self.target_col is not None:
+            target_col = self.target_col
+            target_idx = X_select.columns.get_loc(target_col)
+        else:
+            X_select["target"] = y
+            target_col = "target"
+            target_idx = None
+
+        if np.issubdtype(y.dtype, np.integer):
             target_type = 1
         else:
             target_type = 0
         selected = mrmr_ensemble(X_select,
-                                 ["target"],
+                                 [target_col],
                                  [0]*(len(X_select.columns) - 1) + [target_type],
                                  self.n_features,
                                  1,
@@ -39,18 +53,25 @@ class SelectMRMR(BaseEstimator):
                                  return_index=True)
         selected = selected.tolist()[0][0]
         self.feature_indices_ = selected
+        if target_idx:
+            self.feature_indices_.append(target_idx)
         return self
 
     def transform(self, X, y=None):
-        return X.iloc[:, self.feature_indices_]
+        if isinstance(X, pd.DataFrame):
+            return X.iloc[:, self.feature_indices_]
+        else:
+            return X[:, self.feature_indices_]
 
     def fit_transform(self, X, y):
         self.fit(X, y)
         return self.transform(X, y)
 
-    def set_params(self, n_features, var_prefilter_thresh):
-        self.n_features = n_features
-        self.var_prefilter_thresh = var_prefilter_thresh
+    def set_params(self, n_features=None, var_prefilter_thresh=None):
+        if n_features is not None:
+            self.n_features = n_features
+        if var_prefilter_thresh is not None:
+            self.var_prefilter_thresh = var_prefilter_thresh
 
     def __repr__(self):
         return f"SelectMRMR(n_features={self.n_features}, var_prefilter_thresh={self.var_prefilter_thresh})"
@@ -81,6 +102,7 @@ class BinaryModel:
                                           make_column_selector(dtype_include=object))])
         logistic = LogisticRegressionCV(class_weight="balanced",
                                         scoring="roc_auc",
+                                        solver="saga",
                                         n_jobs=self.n_jobs)
         if self.max_features_to_select > 0:
             select = SelectMRMR()
@@ -150,21 +172,23 @@ class SurvivalModel:
         """
         self.max_features_to_select = max_features_to_select
         self.n_jobs = n_jobs
-        transformer = ColumnTransformer([('scale', StandardScaler(),
-                                          make_column_selector(dtype_include=np.number)),
-                                         ('onehot',
-                                          OneHotEncoder(drop="first", sparse=False),
-                                          make_column_selector(dtype_include=object))])
+        self.transformer = ColumnTransformer([('scale', StandardScaler(),
+                                               make_column_selector(dtype_include=np.number)),
+                                              ('onehot',
+                                               OneHotEncoder(drop="first", sparse=False),
+                                               make_column_selector(dtype_include=object))])
         CoxRegression = sklearn_adapter(CoxPHFitter,
                                         event_col="death",
                                         predict_method="predict_partial_hazard")
         param_grid = {"sklearncoxphfitter__penalizer": 10.0**np.arange(-2, 3)}
         if self.max_features_to_select > 0:
-            select = SelectMRMR()
-            pipe = make_pipeline(transformer, select, CoxRegression())
+            select = SelectMRMR(target_col="death")
+            # can't put CoxRegression in the pipeline since sklearn
+            # transformers cannot return data frames
+            pipe = make_pipeline(select, CoxRegression())
             param_grid["selectmrmr__n_features"] = np.arange(2, self.max_features_to_select + 1)
         else:
-            pipe = make_pipeline(transformer, CoxRegression())
+            pipe = make_pipeline(CoxRegression())
         self.model = GridSearchCV(pipe, param_grid, n_jobs=self.n_jobs)
 
     def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "SurvivalModel":
@@ -189,6 +213,11 @@ class SurvivalModel:
         SurvivalBaseline
             The trained model.
         """
+        death = X["death"]
+        X = X.drop("death", axis=1)
+        X = self.transformer.fit_transform(X)
+        X = pd.DataFrame(X, index=y.index)
+        X["death"] = death
         self.model.fit(X, y)
         return self
 
@@ -218,27 +247,32 @@ class SurvivalModel:
         if times is None:
             # predict risk every month up to 2 years
             times = np.linspace(1, 2, 23)
+
+        death = X["death"]
+        X = X.drop("death", axis=1)
+        X = self.transformer.transform(X)
+        X = pd.DataFrame(X)
+        X["death"] = death
         # We need to change the predict method of the lifelines model
         # while still running the whole pipeline.
         # This is a somewhat ugly hack, there might be a better way to do it.
-        setattr(self.model.named_steps["sklearncoxphfitter"], "_predict_method", "predict_survival_function")
-        pred_surv = self.model.predict(X)
-        setattr(self.model.named_steps["sklearncoxphfitter"], "_predict_method", "predict_partial_hazard")
+        setattr(self.model.best_estimator_.named_steps["sklearncoxphfitter"], "_predict_method", "predict_survival_function")
+        # GridSearchCV.predict does not support keyword arguments
+        pred_surv = self.model.best_estimator_.predict(X, times=times).T
+        setattr(self.model.best_estimator_.named_steps["sklearncoxphfitter"], "_predict_method", "predict_partial_hazard")
         pred_risk = -self.model.predict(X)
         return pred_risk, pred_surv
 
 
 class SimpleBaseline:
-    def __init__(self, data_path, max_features_to_select=10, colnames=[]):
-        self.data_path = data_path
+    def __init__(self, data, max_features_to_select=10, colnames=[]):
         self.binary_model = BinaryModel(max_features_to_select=max_features_to_select)
         self.survival_model = SurvivalModel(max_features_to_select=max_features_to_select)
         self.colnames = colnames
 
-        self.data_train, self.data_valid = self.load_data()
+        self.data_train, self.data_valid = self.prepare_data(data)
 
-    def load_data(self):
-        data = pd.read_csv(self.data_path)
+    def prepare_data(self, data):
         if not self.colnames:
             columns = [c for c in data.columns if c not in ["Study ID", "split"]]
         elif isinstance(self.colnames, list):
@@ -258,16 +292,18 @@ class SimpleBaseline:
         return data_train[columns], data_valid[columns]
 
     def _predict(self, target):
-        X_train = self.data_train.drop(["target_binary", "survival_time", "death"], axis=1)
-        X_valid = self.data_valid.drop(["target_binary", "survival_time", "death"], axis=1)
+        X_train = self.data_train.drop(["target_binary", "survival_time"], axis=1)
+        X_valid = self.data_valid.drop(["target_binary", "survival_time"], axis=1)
         if target == "binary":
+            X_train, X_valid = X_train.drop("death", axis=1), X_valid.drop("death", axis=1)
             y_train = self.data_train["target_binary"]
             y_valid = self.data_valid["target_binary"]
             model = self.binary_model
         elif target == "survival":
             y_train = self.data_train["survival_time"]
-            y_valid = self.data_valid["survival_time"], self.data_valid["death"]
+            y_valid = self.data_valid["death"], self.data_valid["survival_time"]
             model = self.survival_model
+
         model.fit(X_train, y_train)
         y_pred = model.predict(X_valid)
         return y_valid, y_pred
