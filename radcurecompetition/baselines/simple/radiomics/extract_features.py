@@ -7,7 +7,7 @@ import pandas as pd
 
 
 def extract_features(image_directory, id_split_path, output_path, params_file, n_jobs=1):
-    data = pd.read_csv(id_split_path)[["Study ID", "split"]]
+    data = pd.read_csv(id_split_path)[["Study ID", "split", "target_binary", "survival_time", "death"]]
     data["Image"] = data.apply(lambda x: os.path.join(
         image_directory, x["split"], "images", x["Study ID"] + ".nrrd"), axis=1)
     data["Mask"] = data.apply(lambda x: os.path.join(

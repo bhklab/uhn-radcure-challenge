@@ -28,11 +28,11 @@ def main(args):
                                              colnames=radiomics_columns),
         "volume_baseline": SimpleBaseline(args.radiomics_data_path,
                                           max_features_to_select=0,
-                                          colnames=["original_shape_Volume"])  # XXX change to actual colname
+                                          colnames=["original_shape_MeshVolume"])
     }
 
     results = []
-    for name, baseline in baselines:
+    for name, baseline in baselines.items():
         true, pred = baseline.get_test_predictions()
         results_binary = evaluate_binary(true["binary"],
                                          pred["binary"],
@@ -47,15 +47,13 @@ def main(args):
         results.append({"name": name, **results_binary, **results_survival})
 
     results = pd.DataFrame(results)
-    results.to_csv(args.output_path)
+    results.to_csv(args.output_path, index=False)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("clinical_data_path", type=str,
                         help="Path to CSV file with clinical data.")
-    parser.add_argument("radiomics_data_path", type=str,
-                        help="Path to CSV file with radiomics features.")
     parser.add_argument("radiomics_data_path", type=str,
                         help="Path to CSV file with radiomics features.")
     parser.add_argument("--output_path", "-o", type=str,

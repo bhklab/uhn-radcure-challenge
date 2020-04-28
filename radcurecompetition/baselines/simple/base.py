@@ -1,8 +1,13 @@
+from typing import Union, List
+
 import numpy as np
 import pandas as pd
+
 from lifelines import CoxPHFitter
 from lifelines.utils.sklearn_adapter import sklearn_adapter
+
 from pymrmre import mrmr_ensemble
+
 from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.linear_model import LogisticRegressionCV
@@ -85,7 +90,7 @@ class BinaryModel:
         else:
             self.model = make_pipeline(transformer, logistic)
 
-    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "BinaryBaseline":
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "BinaryModel":
         """Train the model.
 
         This method returns `self` to make method chaining easier.
@@ -153,7 +158,7 @@ class SurvivalModel:
         CoxRegression = sklearn_adapter(CoxPHFitter,
                                         event_col="death",
                                         predict_method="predict_partial_hazard")
-        param_grid = {"coxph__penalizer": 10.0**np.arange(-2, 3)}
+        param_grid = {"sklearncoxphfitter__penalizer": 10.0**np.arange(-2, 3)}
         if self.max_features_to_select > 0:
             select = SelectMRMR()
             pipe = make_pipeline(transformer, select, CoxRegression())
@@ -162,7 +167,7 @@ class SurvivalModel:
             pipe = make_pipeline(transformer, CoxRegression())
         self.model = GridSearchCV(pipe, param_grid, n_jobs=self.n_jobs)
 
-    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "SurvivalBaseline":
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "SurvivalModel":
         """Train the model.
 
         This method returns `self` to make method chaining easier. Note that
@@ -187,7 +192,7 @@ class SurvivalModel:
         self.model.fit(X, y)
         return self
 
-    def predict(self, X: pd.DataFrame):
+    def predict(self, X: pd.DataFrame, times: Union[np.ndarray, List[float], None] = None):
         """Generate predictions for new data.
 
         This method outputs the predicted partial hazard values for each row
@@ -200,6 +205,9 @@ class SurvivalModel:
         ----------
         X
             Prediction inputs with samples as rows and features as columns.
+        times, optional
+            Time bins to use for survival function prediction. If None (default),
+            uses monthly bins up to 2 years.
 
         Returns
         -------
@@ -207,12 +215,15 @@ class SurvivalModel:
             Predictions for each row in `X`.
 
         """
+        if times is None:
+            # predict risk every month up to 2 years
+            times = np.linspace(1, 2, 23)
         # We need to change the predict method of the lifelines model
         # while still running the whole pipeline.
         # This is a somewhat ugly hack, there might be a better way to do it.
-        setattr(self.model.named_steps["coxregression"], "_predict_method", "predict_survival_function")
+        setattr(self.model.named_steps["sklearncoxphfitter"], "_predict_method", "predict_survival_function")
         pred_surv = self.model.predict(X)
-        setattr(self.model.named_steps["coxregression"], "_predict_method", "predict_partial_hazard")
+        setattr(self.model.named_steps["sklearncoxphfitter"], "_predict_method", "predict_partial_hazard")
         pred_risk = -self.model.predict(X)
         return pred_risk, pred_surv
 
@@ -233,13 +244,15 @@ class SimpleBaseline:
         elif isinstance(self.colnames, list):
             columns = self.colnames
         elif isinstance(self.colnames, str):
-            columns = data.filter(regex=self.colnames)
+            columns = data.filter(regex=self.colnames).columns.tolist()
         else:
             raise ValueError(f"Column names must be a list, str or None, got {self.colnames}.")
 
         for target in ["target_binary", "survival_time", "death"]:
             if target not in columns:
                 columns.append(target)
+
+        data = data.fillna(-999)
 
         data_train, data_valid = data[data["split"] == "training"], data[data["split"] == "validation"]
         return data_train[columns], data_valid[columns]
@@ -248,18 +261,18 @@ class SimpleBaseline:
         X_train = self.data_train.drop(["target_binary", "survival_time", "death"], axis=1)
         X_valid = self.data_valid.drop(["target_binary", "survival_time", "death"], axis=1)
         if target == "binary":
-            y_train = self.data_train.pop("target_binary")
-            y_valid = self.data_valid.pop("target_binary")
+            y_train = self.data_train["target_binary"]
+            y_valid = self.data_valid["target_binary"]
             model = self.binary_model
         elif target == "survival":
-            y_train = self.data_train.pop("survival_time")
-            y_valid = self.data_valid.pop("survival_time"), self.data_valid.pop("death")
+            y_train = self.data_train["survival_time"]
+            y_valid = self.data_valid["survival_time"], self.data_valid["death"]
             model = self.survival_model
-        model.train(X_train, y_train)
+        model.fit(X_train, y_train)
         y_pred = model.predict(X_valid)
         return y_valid, y_pred
 
-    def get_test_predictions(self):
+    def get_test_predictions(self, times=None):
         true_binary, pred_binary = self._predict("binary")
         (true_event, true_time), (pred_event, pred_time) = self._predict("survival")
 

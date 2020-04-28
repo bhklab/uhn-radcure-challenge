@@ -128,7 +128,6 @@ class RadcurePipeline(Pipeline):
             "Salivary Glands"
         ]
 
-
         image_paths = []
         rtstruct_paths = []
         for mrn in data["MRN"]:

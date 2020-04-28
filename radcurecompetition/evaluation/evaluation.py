@@ -11,7 +11,7 @@ from lifelines.utils import concordance_index
 
 def permutation_test(y_true: np.ndarray,
                      y_pred: np.ndarray,
-                     metric: Callable[np.ndarray, np.ndarray, ...],
+                     metric: Callable[[np.ndarray, np.ndarray], float],
                      n_permutations: int = 5000,
                      n_jobs: int =  -1,
                      **kwargs) -> Tuple[float, float]:
