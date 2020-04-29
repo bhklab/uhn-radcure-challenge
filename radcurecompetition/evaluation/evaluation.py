@@ -211,7 +211,7 @@ def evaluate_survival(event_true: np.ndarray,
     # test set
     event_observed = event_true.copy()
     event_observed[time_true > 2] = 0
-    time_observed = np.clip(time_true, a_max=2)
+    time_observed = np.clip(time_true, 0, 2)
     ci, ci_pval = permutation_test(time_observed, event_pred,
                                    concordance_index,
                                    n_permutations, n_jobs,
