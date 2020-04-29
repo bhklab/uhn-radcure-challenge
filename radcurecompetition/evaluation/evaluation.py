@@ -205,10 +205,17 @@ def evaluate_survival(event_true: np.ndarray,
     dict
         The computed performance metrics.
     """
-    ci, ci_pval = permutation_test(time_true, event_pred,
+
+    # evaluate predictions at time < 2 years
+    # to account for the shorter follow-up in the
+    # test set
+    event_observed = event_true.copy()
+    event_observed[time_true > 2] = 0
+    time_observed = np.clip(time_true, a_max=2)
+    ci, ci_pval = permutation_test(time_observed, event_pred,
                                    concordance_index,
                                    n_permutations, n_jobs,
-                                   event_observed=event_true)
+                                   event_observed=event_observed)
     if time_pred is not None:
         time_bins = np.linspace(1, 2, 23)
         if time_pred.shape[1] != len(time_bins):
