@@ -16,7 +16,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
-class SelectMRMR(BaseEstimator):
+class SelectMRMRe(BaseEstimator):
     def __init__(self, n_features=10, var_prefilter_thresh=0., target_col=None):
         self.n_features = n_features
         self.var_prefilter_thresh = var_prefilter_thresh
@@ -74,7 +74,7 @@ class SelectMRMR(BaseEstimator):
             self.var_prefilter_thresh = var_prefilter_thresh
 
     def __repr__(self):
-        return f"SelectMRMR(n_features={self.n_features}, var_prefilter_thresh={self.var_prefilter_thresh})"
+        return f"SelectMRMRe(n_features={self.n_features}, var_prefilter_thresh={self.var_prefilter_thresh})"
 
 
 class BinaryModel:
@@ -95,19 +95,23 @@ class BinaryModel:
         """
         self.max_features_to_select = max_features_to_select
         self.n_jobs = n_jobs
+        # transformer = ColumnTransformer([('scale', StandardScaler(),
+        #                                   make_column_selector(dtype_include=np.number)),
+        #                                  ('onehot',
+        #                                   OneHotEncoder(drop="first", sparse=False),
+        #                                   make_column_selector(dtype_include=object))])
         transformer = ColumnTransformer([('scale', StandardScaler(),
-                                          make_column_selector(dtype_include=np.number)),
-                                         ('onehot',
-                                          OneHotEncoder(drop="first", sparse=False),
-                                          make_column_selector(dtype_include=object))])
+                                          make_column_selector(dtype_include=np.float))],
+                                        remainder="passthrough")
         logistic = LogisticRegressionCV(class_weight="balanced",
                                         scoring="roc_auc",
                                         solver="saga",
+                                        max_iter=5000,
                                         n_jobs=self.n_jobs)
         if self.max_features_to_select > 0:
-            select = SelectMRMR()
+            select = SelectMRMRe()
             pipe = make_pipeline(transformer, select, logistic)
-            param_grid = {"selectmrmr__n_features": np.arange(2, self.max_features_to_select + 1)}
+            param_grid = {"selectmrmre__n_features": np.arange(2, self.max_features_to_select + 1)}
             self.model = GridSearchCV(pipe, param_grid, n_jobs=self.n_jobs)
         else:
             self.model = make_pipeline(transformer, logistic)
@@ -173,23 +177,28 @@ class SurvivalModel:
         self.max_features_to_select = max_features_to_select
         self.n_jobs = n_jobs
         self.transformer = ColumnTransformer([('scale', StandardScaler(),
-                                               make_column_selector(dtype_include=np.number)),
-                                              ('onehot',
-                                               OneHotEncoder(drop="first", sparse=False),
-                                               make_column_selector(dtype_include=object))])
+                                                make_column_selector(dtype_include=np.float))],
+                                             remainder="passthrough")
+                                               # ('onehot',
+                                               #  OneHotEncoder(drop="first", sparse=False),
+                                               #  make_column_selector(dtype_include=object))])
         CoxRegression = sklearn_adapter(CoxPHFitter,
                                         event_col="death",
                                         predict_method="predict_partial_hazard")
+        cox = CoxRegression()
         param_grid = {"sklearncoxphfitter__penalizer": 10.0**np.arange(-2, 3)}
         if self.max_features_to_select > 0:
-            select = SelectMRMR(target_col="death")
+            select = SelectMRMRe(target_col="death")
             # can't put CoxRegression in the pipeline since sklearn
             # transformers cannot return data frames
-            pipe = make_pipeline(select, CoxRegression())
-            param_grid["selectmrmr__n_features"] = np.arange(2, self.max_features_to_select + 1)
+            pipe = make_pipeline(select, cox)
+            param_grid["selectmrmre__n_features"] = np.arange(2, self.max_features_to_select + 1)
         else:
-            pipe = make_pipeline(CoxRegression())
-        self.model = GridSearchCV(pipe, param_grid, n_jobs=self.n_jobs)
+            pipe = make_pipeline(cox)
+
+        # XXX lifelines sklearn adapter does not support parallelization
+        # for now, need to find a better workaround
+        self.model = GridSearchCV(pipe, param_grid, n_jobs=1)
 
     def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "SurvivalModel":
         """Train the model.
@@ -214,11 +223,11 @@ class SurvivalModel:
             The trained model.
         """
         death = X["death"]
-        X = X.drop("death", axis=1)
-        X = self.transformer.fit_transform(X)
-        X = pd.DataFrame(X, index=y.index)
-        X["death"] = death
-        self.model.fit(X, y)
+        columns = X.columns.drop("death")
+        X_transformed = self.transformer.fit_transform(X.drop("death", axis=1))
+        X_transformed = pd.DataFrame(X, index=y.index, columns=columns)
+        X_transformed["death"] = death
+        self.model.fit(X_transformed, y)
         return self
 
     def predict(self, X: pd.DataFrame, times: Union[np.ndarray, List[float], None] = None):
@@ -249,25 +258,26 @@ class SurvivalModel:
             times = np.linspace(1, 2, 23)
 
         death = X["death"]
-        X = X.drop("death", axis=1)
-        X = self.transformer.transform(X)
-        X = pd.DataFrame(X)
-        X["death"] = death
+        columns = X.columns.drop("death")
+        X_transformed = self.transformer.transform(X.drop("death", axis=1))
+        X_transformed = pd.DataFrame(X_transformed, columns=columns)
+        X_transformed["death"] = death
+
         # We need to change the predict method of the lifelines model
         # while still running the whole pipeline.
         # This is a somewhat ugly hack, there might be a better way to do it.
-        setattr(self.model.best_estimator_.named_steps["sklearncoxphfitter"], "_predict_method", "predict_survival_function")
+        setattr(self.model.best_estimator_["sklearncoxphfitter"], "_predict_method", "predict_survival_function")
         # GridSearchCV.predict does not support keyword arguments
-        pred_surv = self.model.best_estimator_.predict(X, times=times).T
-        setattr(self.model.best_estimator_.named_steps["sklearncoxphfitter"], "_predict_method", "predict_partial_hazard")
-        pred_risk = -self.model.predict(X)
+        pred_surv = self.model.best_estimator_.predict(X_transformed, times=times).T
+        setattr(self.model.best_estimator_["sklearncoxphfitter"], "_predict_method", "predict_partial_hazard")
+        pred_risk = -self.model.predict(X_transformed)
         return pred_risk, pred_surv
 
 
 class SimpleBaseline:
-    def __init__(self, data, max_features_to_select=10, colnames=[]):
-        self.binary_model = BinaryModel(max_features_to_select=max_features_to_select)
-        self.survival_model = SurvivalModel(max_features_to_select=max_features_to_select)
+    def __init__(self, data, max_features_to_select=10, colnames=[], n_jobs=-1):
+        self.binary_model = BinaryModel(max_features_to_select=max_features_to_select, n_jobs=n_jobs)
+        self.survival_model = SurvivalModel(max_features_to_select=max_features_to_select, n_jobs=n_jobs)
         self.colnames = colnames
 
         self.data_train, self.data_valid = self.prepare_data(data)
@@ -285,8 +295,6 @@ class SimpleBaseline:
         for target in ["target_binary", "survival_time", "death"]:
             if target not in columns:
                 columns.append(target)
-
-        data = data.fillna(-999)
 
         data_train, data_valid = data[data["split"] == "training"], data[data["split"] == "validation"]
         return data_train[columns], data_valid[columns]
