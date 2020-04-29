@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -7,6 +8,9 @@ from sklearn.metrics import roc_curve, precision_recall_curve
 
 from ...evaluation import evaluate_binary, evaluate_survival
 from .base import SimpleBaseline
+
+
+np.random.seed(42)
 
 
 def main(args):
