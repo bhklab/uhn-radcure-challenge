@@ -101,7 +101,7 @@ class BinaryModel:
         #                                   OneHotEncoder(drop="first", sparse=False),
         #                                   make_column_selector(dtype_include=object))])
         transformer = ColumnTransformer([('scale', StandardScaler(),
-                                          make_column_selector(dtype_include=np.float))],
+                                          make_column_selector(dtype_include=np.floating))],
                                         remainder="passthrough")
         logistic = LogisticRegressionCV(class_weight="balanced",
                                         scoring="roc_auc",
@@ -177,7 +177,7 @@ class SurvivalModel:
         self.max_features_to_select = max_features_to_select
         self.n_jobs = n_jobs
         self.transformer = ColumnTransformer([('scale', StandardScaler(),
-                                                make_column_selector(dtype_include=np.float))],
+                                                make_column_selector(dtype_include=np.floating))],
                                              remainder="passthrough")
                                                # ('onehot',
                                                #  OneHotEncoder(drop="first", sparse=False),
@@ -225,7 +225,7 @@ class SurvivalModel:
         death = X["death"]
         columns = X.columns.drop("death")
         X_transformed = self.transformer.fit_transform(X.drop("death", axis=1))
-        X_transformed = pd.DataFrame(X, index=y.index, columns=columns)
+        X_transformed = pd.DataFrame(X_transformed, index=y.index, columns=columns)
         X_transformed["death"] = death
         self.model.fit(X_transformed, y)
         return self

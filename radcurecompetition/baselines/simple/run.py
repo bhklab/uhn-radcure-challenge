@@ -83,14 +83,14 @@ def main(args):
         true, pred = baseline.get_test_predictions()
         results_binary = evaluate_binary(true["binary"],
                                          pred["binary"],
-                                         args.n_permutations,
-                                         args.n_jobs)
+                                         n_permutations=args.n_permutations,
+                                         n_jobs=args.n_jobs)
         results_survival = evaluate_survival(true["survival_event"],
                                              true["survival_time"],
                                              pred["survival_event"],
                                              pred["survival_time"],
-                                             args.n_permutations,
-                                             args.n_jobs)
+                                             n_permutations=args.n_permutations,
+                                             n_jobs=args.n_jobs)
         results.append({"name": name, **results_binary, **results_survival})
         binary_predictions.append({"name": name, "true": true["binary"], "pred": pred["binary"][:, 1]})
 
@@ -111,6 +111,7 @@ def main(args):
             ax[1].set_xlabel("Recall")
             ax[1].set_ylabel("Precision")
             ax[1].set_title("Precision-recall curves")
+            np.save(f"pred_{p['name']}.npy", p["pred"], pred)
         fig.legend()
         fig.savefig(args.output_path.replace(".csv", ".png"), dpi=300)
 
