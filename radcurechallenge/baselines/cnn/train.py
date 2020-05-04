@@ -27,13 +27,11 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser = Trainer.add_argparse_args(parser)
 
-    parser.add_argument("--root_directory",
+    parser.add_argument("root_directory",
                         type=str,
-                        default="./.model_checkpoints",
                         help="Directory containing images and segmentation masks.")
-    parser.add_argument("--clinical_data_path",
+    parser.add_argument("clinical_data_path",
                         type=str,
-                        default="./.model_checkpoints",
                         help="Path to CSV file containing the clinical data.")
     parser.add_argument("--checkpoint_dir",
                         type=str,
