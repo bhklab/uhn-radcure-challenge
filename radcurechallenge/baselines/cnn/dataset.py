@@ -55,10 +55,12 @@ class RadcureDataset(Dataset):
         clinical_data = pd.read_csv(clinical_data_path)
         self.clinical_data = clinical_data[clinical_data["split"] == self.split]
 
-        if self.cache_dir and not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
-
-        self.cached = set()
+        if self.cache_dir:
+            if not os.path.exists(self.cache_dir):
+                os.makedirs(self.cache_dir)
+                self.cached = set()
+            else:
+                self.cached = set([os.path.splitext(f)[0] for f in os.listdir(self.cache_dir)])
 
     def _load_from_disk(self, subject_id):
         # load image and GTV mask
@@ -79,7 +81,7 @@ class RadcureDataset(Dataset):
         reference_image.SetOrigin(image.GetOrigin())
         image = sitk.Resample(image, reference_image)
 
-        image = sitk.Clamp(image, -500, 1000) # XXX check the values
+        image = sitk.Clamp(image, -500, 1000)
 
         return image
 

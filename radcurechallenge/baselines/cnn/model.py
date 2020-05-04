@@ -88,18 +88,18 @@ class SimpleCNN(pl.LightningModule):
                                  self.clinical_data_path,
                                  self.hparams.patch_size,
                                  cache_dir=self.cache_dir)
-        if self.cache_dir:
-            # load data into cache before training
-            dl = DataLoader(dataset,
-                            batch_size=self.hparams.batch_size,
-                            num_workers=self.num_workers)
-            # iterate over dataloader to load data into cache
-            for _ in dl:
-                continue
 
         test_size = floor(.1 / .7 * len(dataset)) # use 10% of all data for tuning
         train_dataset, tune_dataset = random_split(dataset, [len(dataset) - test_size, test_size])
         transform = Compose([
+        # if self.hparams.cache_dir:
+            # # load data into cache before training
+            # dl = DataLoader(dataset,
+            #                 batch_size=self.hparams.batch_size,
+            #                 num_workers=self.hparams.num_workers)
+            # # iterate over dataloader to load data into cache
+            # for _ in dl:
+            #     continue
             ToTensor(),
             Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
             Random90DegRotation(),
