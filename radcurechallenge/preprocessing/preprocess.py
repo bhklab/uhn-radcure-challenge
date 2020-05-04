@@ -175,6 +175,7 @@ class RadcurePipeline(Pipeline):
 
         # clean up the clinical variables for phase II
         data["Chemotherapy"] = data["Chemotherapy"].map(lambda x: 0 if "none" in x.lower() else 1, na_action="ignore")
+        data["EGFRI"] = data["Tx Intent"].str.contains("EGFRI").astype(np.uint8)
         data["Disease Site"] = data["Disease Site"].str.lower()
         data["HPV Combined"] = data["HPV Combined"].map({"Yes, positive": 1, "Yes, Negative": 0})
         data["Stage"] = data["Stage-7th"]
@@ -194,6 +195,7 @@ class RadcurePipeline(Pipeline):
             "Stage",
             "Dose",
             "Chemotherapy",
+            "EGFRI",
             "HPV Combined",
             "Disease Site"
         ]]
@@ -236,6 +238,8 @@ class RadcurePipeline(Pipeline):
             The ID of the currently processed subject."""
         image, rtstruct = self.image_input(subject_id)
         mask = self.make_binary_mask(rtstruct, image)
+        if len(mask.roi_names) > 1:
+            mask = mask.get_label(name="GTV")
 
         split = self.clinical_data.loc[subject_id, "split"]
         self.image_output(subject_id, image, split=split)

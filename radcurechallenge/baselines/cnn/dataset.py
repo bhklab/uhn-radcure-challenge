@@ -43,6 +43,7 @@ class RadcureDataset(Dataset):
                  transform=None):
         self.root_directory = root_directory
         self.patch_size = patch_size
+        self.target_col = target_col
         self.train = train
         self.cache_dir = cache_dir
         self.transform = transform
@@ -81,7 +82,7 @@ class RadcureDataset(Dataset):
         reference_image.SetOrigin(image.GetOrigin())
         image = sitk.Resample(image, reference_image)
 
-        image = sitk.Clamp(image, -500, 1000)
+        image = sitk.Clamp(image, sitk.sitkFloat32, -500, 1000)
 
         return image
 

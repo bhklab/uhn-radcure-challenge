@@ -12,6 +12,7 @@ from torchvision.transforms import Compose
 
 from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
 
 from .dataset import RadcureDataset
 from .transforms import *
@@ -103,6 +104,7 @@ class SimpleCNN(pl.LightningModule):
         train_targets = train_dataset.clinical_data["target_binary"]
         train_indices, tune_indices = train_test_split(train_indices, test_size=tune_size, stratify=train_targets)
         train_dataset, tune_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, tune_indices)
+        self.pos_weight = compute_class_weight(train_targets, [0, 1], "balanced")
 
         # apply data augmentation only on training set
         train_transform = Compose([
@@ -155,7 +157,7 @@ class SimpleCNN(pl.LightningModule):
         output = self.forward(x)
         loss = F.binary_cross_entropy_with_logits(output,
                                                   y,
-                                                  pos_weight=self.hparams.pos_weight)
+                                                  pos_weight=self.pos_weight)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -163,7 +165,7 @@ class SimpleCNN(pl.LightningModule):
         output = self.forward(x)
         loss = F.binary_cross_entropy_with_logits(output,
                                                   y,
-                                                  pos_weight=self.hparams.pos_weight)
+                                                  pos_weight=self.pos_weight)
         pred_prob = F.sigmoid(output)
         return {"loss": loss, "pred_prob": pred_prob, "y": y}
 
@@ -213,8 +215,4 @@ class SimpleCNN(pl.LightningModule):
                             default=1., # XXX add correct value
                             help=("The standard deviation of  pixel intensity"
                                   "used for input normalization."))
-        parser.add_argument("--pos_weight",
-                            type=float,
-                            default=1e-5, # XXX add corect value
-                            help="The loss weight for positive class.")
         return parser
