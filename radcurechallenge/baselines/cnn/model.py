@@ -207,12 +207,12 @@ class SimpleCNN(pl.LightningModule):
                                   "each tumour."))
         parser.add_argument("--dataset_mean",
                             type=float,
-                            default=0., # XXX add correct value
+                            default=7.857790519969654,
                             help=("The mean pixel intensity used for"
                                   "input normalization."))
         parser.add_argument("--dataset_std",
                             type=float,
-                            default=1., # XXX add correct value
+                            default=257.45108480137304,
                             help=("The standard deviation of  pixel intensity"
                                   "used for input normalization."))
         return parser
