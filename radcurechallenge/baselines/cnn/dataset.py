@@ -70,7 +70,7 @@ class RadcureDataset(Dataset):
 
         # crop the image to (patch_size)^3 patch around the tumour centre
         tumour_centre = find_centroid(mask)
-        size = np.ceil(self.patch_size / np.asarray(image.GetSpacing())).astype(np.int)
+        size = np.ceil(self.patch_size / np.asarray(image.GetSpacing())).astype(np.int) + 1
         min_coords = np.floor(tumour_centre - size / 2).astype(np.int64)
         max_coords = np.floor(tumour_centre + size / 2).astype(np.int64)
         min_x, min_y, min_z = min_coords
