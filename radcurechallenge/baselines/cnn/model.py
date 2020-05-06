@@ -172,8 +172,8 @@ class SimpleCNN(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         loss = torch.stack([x["loss"] for x in outputs]).mean()
-        pred_prob = torch.stack([x["pred_prob"] for x in outputs]).detach().cpu().numpy()
-        y = torch.stack([x["y"] for x in outputs]).detach().cpu().numpy()
+        pred_prob = torch.cat([x["pred_prob"] for x in outputs]).detach().cpu().numpy()
+        y = torch.cat([x["y"] for x in outputs]).detach().cpu().numpy()
         try:
             roc_auc = roc_auc_score(y, pred_prob)
         except ValueError:
