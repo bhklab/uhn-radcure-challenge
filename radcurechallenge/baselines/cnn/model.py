@@ -1,4 +1,4 @@
-from math import floor
+from math import floor, pi
 from argparse import ArgumentParser
 
 import torch
@@ -26,12 +26,12 @@ class SimpleCNN(pl.LightningModule):
 
         self.conv1 = nn.Conv3d(in_channels=1, out_channels=64, kernel_size=5)
         self.conv2 = nn.Conv3d(in_channels=64, out_channels=128, kernel_size=3)
-        self.pool1 = nn.MaxPool3d(kernel_size=3)
+        self.pool1 = nn.MaxPool3d(kernel_size=2, stride=2)
         self.conv3 = nn.Conv3d(in_channels=128, out_channels=256, kernel_size=3)
         self.conv4 = nn.Conv3d(in_channels=256, out_channels=512, kernel_size=3)
-        self.pool2 = nn.MaxPool3d(kernel_size=3)
+        self.pool2 = nn.MaxPool3d(kernel_size=2, stride=2)
 
-        self.global_pool = nn.AdaptiveAvgPool3d(512)
+        self.global_pool = nn.AdaptiveAvgPool3d(1)
         self.leaky_relu = nn.LeakyReLU(0.1)
         self.fc = nn.Linear(512, 1)
 
@@ -70,33 +70,46 @@ class SimpleCNN(pl.LightningModule):
 
     def init_weights(self, m):
         if isinstance(m, nn.Conv3d):
-            nn.init.xavier_uniform_(m.weight)
+            nn.init.kaiming_normal_(m.weight, a=.1)
         elif isinstance(m, nn.BatchNorm3d):
             nn.init.constant_(m.weight, 1.)
             nn.init.constant_(m.bias, 0.)
         elif isinstance(m, nn.Linear):
-            nn.init.xavier_uniform_(m.weight)
-            nn.init.xavier_uniform_(m.bias)
+            nn.init.kaiming_normal_(m.weight)
+            nn.init.constant_(m.bias, -1.5214691)
 
     def prepare_data(self):
+        valid_transform = Compose([
+            Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
+            ToTensor()
+        ])
+        if self.hparams.augment:
+            # apply data augmentation only on training set
+            train_transform = Compose([
+                Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
+                RandomInPlaneRotation(pi / 6),
+                RandomFlip(0),
+                # RandomFlip(1),
+                RandomFlip(2),
+                RandomNoise(),
+                ToTensor()
+            ])
+        else:
+            train_transform = valid_transform
         train_dataset = RadcureDataset(self.hparams.root_directory,
                                        self.hparams.clinical_data_path,
                                        self.hparams.patch_size,
                                        train=True,
-                                       cache_dir=self.hparams.cache_dir)
+                                       transform=train_transform,
+                                       cache_dir=self.hparams.cache_dir,
+                                       num_workers=self.hparams.num_workers)
         valid_dataset = RadcureDataset(self.hparams.root_directory,
-                                      self.hparams.clinical_data_path,
-                                      self.hparams.patch_size,
-                                      train=False,
-                                      cache_dir=None)
-        # if self.hparams.cache_dir:
-            # # load data into cache before training
-            # dl = DataLoader(dataset,
-            #                 batch_size=self.hparams.batch_size,
-            #                 num_workers=self.hparams.num_workers)
-            # # iterate over dataloader to load data into cache
-            # for _ in dl:
-            #     continue
+                                       self.hparams.clinical_data_path,
+                                       self.hparams.patch_size,
+                                       train=False,
+                                       transform=valid_transform,
+                                       cache_dir=self.hparams.cache_dir,
+                                       num_workers=self.hparams.num_workers)
 
         # make sure the tuning set is balanced
         tune_size = floor(.1 / .7 * len(train_dataset)) # use 10% of all data for tuning
@@ -104,28 +117,15 @@ class SimpleCNN(pl.LightningModule):
         train_targets = train_dataset.clinical_data["target_binary"]
         train_indices, tune_indices = train_test_split(train_indices, test_size=tune_size, stratify=train_targets)
         train_dataset, tune_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, tune_indices)
-        self.pos_weight = compute_class_weight(train_targets, [0, 1], "balanced")
+        self.pos_weight = None# torch.tensor(compute_class_weight("balanced", [0, 1], train_targets)[1])
 
-        # apply data augmentation only on training set
-        train_transform = Compose([
-            ToTensor(),
-            Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
-            Random90DegRotation(),
-            RandomFlip((0, 1)),
-            RandomFlip((0, 2)),
-            RandomFlip((1, 2)),
-            RandomNoise()
-        ])
-        valid_transform = Compose([
-            ToTensor(),
-            Normalize(self.hparams.dataset_mean, self.hparams.dataset_std)
-        ])
-        train_dataset.dataset.transform = train_transform
-        tune_dataset.dataset.transform = valid_transform
-        valid_dataset.transform = valid_transform
         self.train_dataset = train_dataset
         self.tune_dataset = tune_dataset
         self.valid_dataset = valid_dataset
+        print(f"training:   {len(self.train_dataset)}")
+        print(f"tuning:     {len(self.tune_dataset)}")
+        print(f"validation: {len(self.valid_dataset)}")
+
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset,
@@ -149,31 +149,38 @@ class SimpleCNN(pl.LightningModule):
         optimizer = Adam(self.parameters(),
                          lr=self.hparams.lr,
                          weight_decay=self.hparams.weight_decay)
-        scheduler = ReduceLROnPlateau(optimizer, 'min')
-        return [optimizer], [scheduler]
+        scheduler = {
+                "scheduler": ReduceLROnPlateau(optimizer),
+                "monitor": "tuning_loss"
+        }
+        return [optimizer]#, [scheduler]
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        output = self.forward(x)
+        output = self.forward(x).squeeze(1)
         loss = F.binary_cross_entropy_with_logits(output,
-                                                  y,
+                                                  y.float(),
                                                   pos_weight=self.pos_weight)
-        return loss
+        logs = {'training_loss': loss}
+        return {'loss': loss, 'log': logs}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        output = self.forward(x)
+        output = self.forward(x).squeeze(1)
         loss = F.binary_cross_entropy_with_logits(output,
-                                                  y,
+                                                  y.float(),
                                                   pos_weight=self.pos_weight)
-        pred_prob = F.sigmoid(output)
+        pred_prob = torch.sigmoid(output)
         return {"loss": loss, "pred_prob": pred_prob, "y": y}
 
     def validation_epoch_end(self, outputs):
         loss = torch.stack([x["loss"] for x in outputs]).mean()
         pred_prob = torch.stack([x["pred_prob"] for x in outputs]).detach().cpu().numpy()
         y = torch.stack([x["y"] for x in outputs]).detach().cpu().numpy()
-        roc_auc = roc_auc_score(y, pred_prob)
+        try:
+            roc_auc = roc_auc_score(y, pred_prob)
+        except ValueError:
+            roc_auc = float("nan")
         avg_prec = average_precision_score(y, pred_prob)
         # log loss and metrics to Tensorboard
         log = {"tuning_loss": loss, "roc_auc": roc_auc, "average_precision": avg_prec}
@@ -203,16 +210,16 @@ class SimpleCNN(pl.LightningModule):
         parser.add_argument("--patch_size",
                             type=int,
                             default=50,
-                            help=("Size of the image patch extracted around"
+                            help=("Size of the image patch extracted around "
                                   "each tumour."))
         parser.add_argument("--dataset_mean",
                             type=float,
-                            default=7.857790519969654,
-                            help=("The mean pixel intensity used for"
+                            default=7.8577905,
+                            help=("The mean pixel intensity used for "
                                   "input normalization."))
         parser.add_argument("--dataset_std",
                             type=float,
-                            default=257.45108480137304,
-                            help=("The standard deviation of  pixel intensity"
+                            default=257.45108,
+                            help=("The standard deviation of  pixel intensity "
                                   "used for input normalization."))
         return parser

@@ -38,13 +38,10 @@ if __name__ == "__main__":
                         default="./.model_checkpoints",
                         help="Directory where model checkpoints will be saved.")
     parser.add_argument("--cache_dir",
-                        type=lambda x: None if x == "None" else x,
-                        nargs="?",
-                        default=None,
+                        type=str,
+                        default="./data/data_cache",
                         help=("Directory where the preprocessed data "
-                              "will be saved. If not specified, data will not "
-                              "be cached, which slows down loading but saves "
-                              "disk space."))
+                              "will be saved."))
     parser.add_argument("--num_workers",
                         type=int,
                         default=1,

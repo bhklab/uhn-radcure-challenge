@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
+from joblib import Parallel, delayed
 
 from torch.utils.data import Dataset
 
@@ -39,14 +40,15 @@ class RadcureDataset(Dataset):
                  patch_size=50,
                  target_col="target_binary",
                  train=True,
-                 cache_dir=".cache/",
-                 transform=None):
+                 cache_dir=".data_cache/",
+                 transform=None,
+                 num_workers=1):
         self.root_directory = root_directory
         self.patch_size = patch_size
         self.target_col = target_col
         self.train = train
-        self.cache_dir = cache_dir
         self.transform = transform
+        self.num_workers = num_workers
 
         if self.train:
             self.split = "training"
@@ -56,14 +58,15 @@ class RadcureDataset(Dataset):
         clinical_data = pd.read_csv(clinical_data_path)
         self.clinical_data = clinical_data[clinical_data["split"] == self.split]
 
-        if self.cache_dir:
-            if not os.path.exists(self.cache_dir):
-                os.makedirs(self.cache_dir)
-                self.cached = set()
-            else:
-                self.cached = set([os.path.splitext(f)[0] for f in os.listdir(self.cache_dir)])
+        self.cache_path = os.path.join(cache_dir, self.split)
+        if not os.path.exists(self.cache_path):
+            os.makedirs(self.cache_path)
+            self._prepare_data()
 
-    def _load_from_disk(self, subject_id):
+    def _prepare_data(self):
+        Parallel(n_jobs=self.num_workers)(delayed(self._preprocess_subject)(subject_id) for subject_id in self.clinical_data["Study ID"])
+
+    def _preprocess_subject(self, subject_id):
         # load image and GTV mask
         path = os.path.join(self.root_directory, self.split, "{}", f"{subject_id}.nrrd")
         image, mask = sitk.ReadImage(path.format("images")), sitk.ReadImage(path.format("masks"))
@@ -84,22 +87,14 @@ class RadcureDataset(Dataset):
 
         image = sitk.Clamp(image, sitk.sitkFloat32, -500, 1000)
 
-        return image
-
-    def _load_from_cache(self, subject_id):
-        path = os.path.join(self.cache_dir, f"{subject_id}.nrrd")
-        return sitk.ReadImage(path)
+        sitk.WriteImage(image, os.path.join(self.cache_path, f"{subject_id}.nrrd"), True)
 
     def __getitem__(self, idx):
         subject_id = self.clinical_data.iloc[idx]["Study ID"]
         target = self.clinical_data.iloc[idx][self.target_col]
 
-        if self.cache_dir and subject_id in self.cached:
-            image = self._load_from_cache(subject_id)
-            sitk.WriteImage(image, os.path.join(self.cache_dir, f"{subject_id}.nrrd"))
-            self.cached.add(subject_id)
-        else:
-            image = self._load_from_disk(subject_id)
+        path = os.path.join(self.cache_path, f"{subject_id}.nrrd")
+        image = sitk.ReadImage(path)
 
         if self.transform is not None:
             image = self.transform(image)
