@@ -83,19 +83,16 @@ class SimpleCNN(pl.LightningModule):
             Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
             ToTensor()
         ])
-        if self.hparams.augment:
-            # apply data augmentation only on training set
-            train_transform = Compose([
-                Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
-                RandomInPlaneRotation(pi / 6),
-                RandomFlip(0),
-                # RandomFlip(1),
-                RandomFlip(2),
-                RandomNoise(),
-                ToTensor()
-            ])
-        else:
-            train_transform = valid_transform
+        # apply data augmentation only on training set
+        train_transform = Compose([
+            Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
+            RandomInPlaneRotation(pi / 6),
+            RandomFlip(0),
+            # RandomFlip(1),
+            RandomFlip(2),
+            RandomNoise(),
+            ToTensor()
+        ])
         train_dataset = RadcureDataset(self.hparams.root_directory,
                                        self.hparams.clinical_data_path,
                                        self.hparams.patch_size,
@@ -117,7 +114,7 @@ class SimpleCNN(pl.LightningModule):
         train_targets = train_dataset.clinical_data["target_binary"]
         train_indices, tune_indices = train_test_split(train_indices, test_size=tune_size, stratify=train_targets)
         train_dataset, tune_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, tune_indices)
-        self.pos_weight = None# torch.tensor(compute_class_weight("balanced", [0, 1], train_targets)[1])
+        self.pos_weight = torch.tensor(compute_class_weight("balanced", [0, 1], train_targets)[1])
 
         self.train_dataset = train_dataset
         self.tune_dataset = tune_dataset
@@ -153,7 +150,7 @@ class SimpleCNN(pl.LightningModule):
                 "scheduler": ReduceLROnPlateau(optimizer),
                 "monitor": "tuning_loss"
         }
-        return [optimizer]#, [scheduler]
+        return [optimizer], [scheduler]
 
     def training_step(self, batch, batch_idx):
         x, y = batch
