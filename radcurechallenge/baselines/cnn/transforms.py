@@ -3,39 +3,55 @@
 import numpy as np
 import SimpleITK as sitk
 import torch
-from torchvision.transforms import *
 
 
 class ToTensor:
     def __call__(self, image):
         array = sitk.GetArrayFromImage(image)
-        tensor = torch.from_numpy(array).unsqueeze(0)
+        tensor = torch.from_numpy(array).unsqueeze(0).float()
         return tensor
 
 
-class Random90DegRotation:
-    def __call__(self, tensor):
-        k = np.random.randint(0, 4, 1)
-        return torch.rot90(tensor, k, (1, 2))
+class RandomInPlaneRotation:
+    def __init__(self, max_angle):
+        self.max_angle = max_angle
+
+    def __call__(self, x):
+        angle = -self.max_angle + 2 * self.max_angle * torch.rand(1).item()
+        rotation_centre = np.array(x.GetSize()) / 2
+        rotation_centre = x.TransformContinuousIndexToPhysicalPoint(rotation_centre)
+
+        rotation = sitk.Euler3DTransform(
+            rotation_centre,
+            0,      # the angle of rotation around the x-axis, in radians -> coronal rotation
+            0,      # the angle of rotation around the y-axis, in radians -> saggittal rotation
+            angle,  # the angle of rotation around the z-axis, in radians -> axial rotation
+            (0., 0., 0.)  # no translation
+        )
+        return sitk.Resample(x, x, rotation)
 
 
 class RandomFlip:
-    def __init__(self, dims):
-        self.dims = dims
+    def __init__(self, dim):
+        self.dim = dim
+        self.flip_mask = [i == self.dim for i in range(3)]
 
-    def __call__(self, tensor):
+    def __call__(self, x):
         if np.random.random() > .5:
-            tensor = torch.flip(tensor, self.dims)
-        return tensor
+            x = sitk.Flip(x, self.flip_mask)
+        return x
 
 
 class RandomNoise:
     def __init__(self, std=1.):
         self.std = std
 
-    def __call__(self, tensor):
-        noise = torch.randn(tensor.size()) * self.std
-        return tensor + noise
+    def __call__(self, x):
+        # use Pytorch random generator for consistent use of seeds
+        noise = (torch.randn(x.GetSize()[::-1]) * self.std).numpy()
+        noise = sitk.GetImageFromArray(noise)
+        noise.CopyInformation(x)
+        return x + noise
 
 
 class Normalize:
@@ -43,5 +59,6 @@ class Normalize:
         self.mean = mean
         self.std = std
 
-    def __call__(self, tensor):
-        return (tensor - mean) / std
+    def __call__(self, x):
+        x = (x - self.mean) / self.std
+        return sitk.Cast(x, sitk.sitkFloat32)
