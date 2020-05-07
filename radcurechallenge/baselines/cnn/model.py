@@ -123,6 +123,27 @@ class SimpleCNN(pl.LightningModule):
         print(f"tuning:     {len(self.tune_dataset)}")
         print(f"validation: {len(self.valid_dataset)}")
 
+        # plot a few example images from the training, tuning
+        # and validation datasets
+        train_imgs = []
+        for i in torch.randint(0, len(self.train_dataset), (5,)):
+            img = (self.train_dataset[i.item()][0][:, :, 25] - 3.) / 6.
+            train_imgs.append(img)
+
+        tune_imgs = []
+        for i in torch.randint(0, len(self.tune_dataset), (5,)):
+            img = (self.tune_dataset[i.item()][0][:, :, 25] - 3.) / 6.
+            tune_imgs.append(img)
+
+        valid_imgs = []
+        for i in torch.randint(0, len(self.valid_dataset), (5,)):
+            img = (self.valid_dataset[i.item()][0][:, :, 25] - 3.) / 6.
+            valid_imgs.append(img)
+
+        self.logger.experiment.add_images("training", torch.stack(train_imgs, dim=0), dataformat="NCHW")
+        self.logger.experiment.add_images("tuning", torch.stack(tune_imgs, dim=0), dataformat="NCHW")
+        self.logger.experiment.add_images("validation", torch.stack(valid_imgs, dim=0), dataformat="NCHW")
+
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset,
@@ -158,7 +179,7 @@ class SimpleCNN(pl.LightningModule):
         loss = F.binary_cross_entropy_with_logits(output,
                                                   y.float(),
                                                   pos_weight=self.pos_weight)
-        logs = {'training_loss': loss}
+        logs = {'training/loss': loss}
         return {'loss': loss, 'log': logs}
 
     def validation_step(self, batch, batch_idx):
@@ -180,7 +201,11 @@ class SimpleCNN(pl.LightningModule):
             roc_auc = float("nan")
         avg_prec = average_precision_score(y, pred_prob)
         # log loss and metrics to Tensorboard
-        log = {"tuning_loss": loss, "roc_auc": roc_auc, "average_precision": avg_prec}
+        log = {
+            "tuning/loss": loss,
+            "tuning/roc_auc": roc_auc,
+            "tuning/average_precision": avg_prec
+        }
         return {"tuning_loss": loss, "log": log}
 
     def test_step(self, batch, batch_idx):

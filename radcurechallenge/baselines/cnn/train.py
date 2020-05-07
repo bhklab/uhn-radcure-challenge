@@ -24,7 +24,7 @@ def main(hparams):
     checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path,
                                           save_top_k=5,
                                           monitor="tuning_loss")
-    logger = TestTubeLogger(os.path.join(hparams.logdir, "test_tube_logs"), name='simplecnn')
+    logger = TestTubeLogger(os.path.join(hparams.logdir, "test_tube_logs"), name="simplecnn")
     model = SimpleCNN(hparams)
     trainer = Trainer.from_argparse_args(hparams,
                                          logger=logger,
