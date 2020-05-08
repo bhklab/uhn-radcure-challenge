@@ -13,7 +13,7 @@ def main(args):
         os.makedirs(args.output_dir)
 
     data = pd.read_csv(args.true_data_path, index_col="Study ID")
-    targets = data.loc[data["split"] == "validation", ["target_binary", "death", "survival_time"]]
+    targets = data.loc[data["split"] == "test", ["target_binary", "death", "survival_time"]]
     targets = targets.sort_index()
 
     files = filter(lambda x: x.name.endswith(".csv"), os.scandir(args.predictions_dir))

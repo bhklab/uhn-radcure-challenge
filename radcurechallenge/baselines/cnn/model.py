@@ -1,5 +1,5 @@
 from math import floor, pi
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 
 import torch
 import torch.nn as nn
@@ -20,7 +20,35 @@ from .transforms import *
 
 
 class SimpleCNN(pl.LightningModule):
-    def __init__(self, hparams):
+    r"""A simple convolutional neural network (CNN) for survival prediction.
+    
+
+    The prognostic task is formulated as binary classification of 2-year
+    survival. The architecture is based on [1]_, but with the top
+    fully-connected layers removed.
+
+    Notes
+    -----
+    The model is implemented using `pytorch_lightning`. For an introduction
+    to the basic ideas, including the structure of a module, see here:
+    <https://pytorch-lightning.readthedocs.io/en/latest/introduction_guide.html>
+
+    References
+    ----------
+    .. [1] A. Hosny et al., ‘Deep learning for lung cancer prognostication:
+       A retrospective multi-cohort radiomics study’, PLOS Medicine, vol. 15,
+       no. 11, p. e1002711, Nov. 2018.
+    """
+
+    def __init__(self, hparams: Namespace):
+        """Initialize the module.
+
+        Parameters
+        ----------
+        hparams
+            `Namespace` object containing the model hyperparameters.
+            Should usually be generated automatically by `argparse`.
+        """
         super().__init__()
 
         self.hparams = hparams
@@ -41,9 +69,21 @@ class SimpleCNN(pl.LightningModule):
         self.conv_bn3 = nn.BatchNorm3d(self.conv3.out_channels)
         self.conv_bn4 = nn.BatchNorm3d(self.conv4.out_channels)
 
-        self.apply(self.init_weights)
+        self.apply(self.init_params)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Run the forward pass on a batch of examples.
+
+        Parameters
+        ----------
+        x
+            A batch of examples.
+
+        Returns
+        -------
+        torch.Tensor
+            The predicted logits.
+        """
         x = self.conv1(x)
         x = self.conv_bn1(x)
         x = self.leaky_relu(x)
@@ -69,7 +109,28 @@ class SimpleCNN(pl.LightningModule):
         x = self.fc(x)
         return x
 
-    def init_weights(self, m):
+    def init_params(self, m: torch.nn.Module):
+        """Initialize the parameters of a module.
+
+        Parameters
+        ----------
+        m
+            The module to initialize.
+
+        Notes
+        -----
+        Convolutional layer weights are initialized from a normal distribution
+        as described in [1]_ in `fan_in` mode. The final layer bias is
+        initialized so that the expected predicted probability accounts for
+        the class imbalance at initialization.
+
+        References
+        ----------
+        .. [1] K. He et al. ‘Delving Deep into Rectifiers: Surpassing
+           Human-Level Performance on ImageNet Classification’,
+           arXiv:1502.01852 [cs], Feb. 2015.
+        """
+
         if isinstance(m, nn.Conv3d):
             nn.init.kaiming_normal_(m.weight, a=.1)
         elif isinstance(m, nn.BatchNorm3d):
@@ -80,7 +141,14 @@ class SimpleCNN(pl.LightningModule):
             nn.init.constant_(m.bias, -1.5214691)
 
     def prepare_data(self):
-        valid_transform = Compose([
+        """Preprocess the data and create training, validation and test
+        datasets.
+
+
+        Notes
+        -----
+        To avoid confusion with """
+        test_transform = Compose([
             Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
             ToTensor()
         ])
@@ -102,55 +170,60 @@ class SimpleCNN(pl.LightningModule):
                                        transform=train_transform,
                                        cache_dir=self.hparams.cache_dir,
                                        num_workers=self.hparams.num_workers)
-        valid_dataset = RadcureDataset(self.hparams.root_directory,
+        test_dataset = RadcureDataset(self.hparams.root_directory,
                                        self.hparams.clinical_data_path,
                                        self.hparams.patch_size,
                                        train=False,
-                                       transform=valid_transform,
+                                       transform=test_transform,
                                        cache_dir=self.hparams.cache_dir,
                                        num_workers=self.hparams.num_workers)
 
-        # make sure the tuning set is balanced
-        tune_size = floor(.1 / .7 * len(train_dataset)) # use 10% of all data for tuning
+        # make sure the validation set is balanced
+        val_size = floor(.1 / .7 * len(train_dataset)) # use 10% of all data for validation
         train_indices = range(len(train_dataset))
         train_targets = train_dataset.clinical_data["target_binary"]
-        train_indices, tune_indices = train_test_split(train_indices, test_size=tune_size, stratify=train_targets)
-        train_dataset, tune_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, tune_indices)
-        tune_dataset.dataset.transform = valid_transform
+        train_indices, val_indices = train_test_split(train_indices, test_size=val_size, stratify=train_targets)
+        train_dataset, val_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, val_indices)
+        val_dataset.dataset.transform = test_transform
         self.pos_weight = torch.tensor(compute_class_weight("balanced", [0, 1], train_targets)[1])
 
         self.train_dataset = train_dataset
-        self.tune_dataset = tune_dataset
-        self.valid_dataset = valid_dataset
-        print(f"training:   {len(self.train_dataset)}")
-        print(f"tuning:     {len(self.tune_dataset)}")
-        print(f"validation: {len(self.valid_dataset)}")
+        self.val_dataset = val_dataset
+        self.test_dataset = test_dataset
 
-        # plot a few example images from the training, tuning
-        # and validation datasets
+
+    def on_train_start(self):
+        print("Dataset sizes")
+        print("=============")
+        print(f"training:   {len(self.train_dataset)}")
+        print(f"validation: {len(self.val_dataset)}")
+        print(f"test:       {len(self.test_dataset)}")
+
+        # plot a few example images from the training, validation
+        # and test datasets
         train_imgs = []
         for i in torch.randint(0, len(self.train_dataset), (5,)):
             img = (self.train_dataset[i.item()][0][:, :, 25] - 3.) / 6.
             train_imgs.append(img)
 
-        tune_imgs = []
-        for i in torch.randint(0, len(self.tune_dataset), (5,)):
-            img = (self.tune_dataset[i.item()][0][:, :, 25] - 3.) / 6.
-            tune_imgs.append(img)
+        val_imgs = []
+        for i in torch.randint(0, len(self.val_dataset), (5,)):
+            img = (self.val_dataset[i.item()][0][:, :, 25] - 3.) / 6.
+            val_imgs.append(img)
 
-        valid_imgs = []
-        for i in torch.randint(0, len(self.valid_dataset), (5,)):
-            img = (self.valid_dataset[i.item()][0][:, :, 25] - 3.) / 6.
-            valid_imgs.append(img)
+        test_imgs = []
+        for i in torch.randint(0, len(self.test_dataset), (5,)):
+            img = (self.test_dataset[i.item()][0][:, :, 25] - 3.) / 6.
+            test_imgs.append(img)
 
         self.logger.experiment.add_images("training",
                                           torch.stack(train_imgs, dim=0),
                                           dataformats="NCHW")
-        self.logger.experiment.add_images("tuning",
-                                          torch.stack(tune_imgs, dim=0),
-                                          dataformats="NCHW")
         self.logger.experiment.add_images("validation",
-                                          torch.stack(valid_imgs, dim=0),
+                                          torch.stack(val_imgs, dim=0),
+                                          dataformats="NCHW")
+        self.logger.experiment.add_images("test",
+                                          torch.stack(test_imgs, dim=0),
                                           dataformats="NCHW")
 
 
@@ -161,13 +234,13 @@ class SimpleCNN(pl.LightningModule):
                           shuffle=True)
 
     def val_dataloader(self):
-        return DataLoader(self.tune_dataset,
+        return DataLoader(self.val_dataset,
                           batch_size=self.hparams.batch_size,
                           num_workers=self.hparams.num_workers,
                           shuffle=False)
 
     def test_dataloader(self):
-        return DataLoader(self.valid_dataset,
+        return DataLoader(self.test_dataset,
                           batch_size=self.hparams.batch_size,
                           num_workers=self.hparams.num_workers,
                           shuffle=False)
@@ -178,7 +251,7 @@ class SimpleCNN(pl.LightningModule):
                          weight_decay=self.hparams.weight_decay)
         scheduler = {
             "scheduler": MultiStepLR(optimizer, milestones=[100, 300]),
-            "monitor": "tuning_loss",
+            "monitor": "val_loss",
         }
         return [optimizer], [scheduler]
 
@@ -211,11 +284,11 @@ class SimpleCNN(pl.LightningModule):
         avg_prec = average_precision_score(y, pred_prob)
         # log loss and metrics to Tensorboard
         log = {
-            "tuning/loss": loss,
-            "tuning/roc_auc": roc_auc,
-            "tuning/average_precision": avg_prec
+            "validation/loss": loss,
+            "validation/roc_auc": roc_auc,
+            "validation/average_precision": avg_prec
         }
-        return {"tuning_loss": loss, "roc_auc": roc_auc, "log": log}
+        return {"val_loss": loss, "roc_auc": roc_auc, "log": log}
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)

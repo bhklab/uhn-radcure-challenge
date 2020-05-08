@@ -77,7 +77,7 @@ def main(args):
                                  n_jobs=args.n_jobs)
     }
 
-    valid_ids = clinical.loc[clinical["split"] == "validation", "Study ID"]
+    test_ids = clinical.loc[clinical["split"] == "test", "Study ID"]
     for name, baseline in baselines.items():
         pred = baseline.get_test_predictions()
         survival_time = pred.pop("survival_time")
@@ -85,7 +85,7 @@ def main(args):
             pred[f"survival_time_{i}"] = col
 
         out_path = os.path.join(args.output_path, f"baseline_{name}.csv")
-        pd.DataFrame(pred, index=valid_ids).to_csv(out_path)
+        pd.DataFrame(pred, index=test_ids).to_csv(out_path)
 
 
 if __name__ == "__main__":

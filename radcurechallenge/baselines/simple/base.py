@@ -280,7 +280,7 @@ class SimpleBaseline:
         self.survival_model = SurvivalModel(max_features_to_select=max_features_to_select, n_jobs=n_jobs)
         self.colnames = colnames
 
-        self.data_train, self.data_valid = self.prepare_data(data)
+        self.data_train, self.data_test = self.prepare_data(data)
 
     def prepare_data(self, data):
         if not self.colnames:
@@ -296,24 +296,24 @@ class SimpleBaseline:
             if target not in columns:
                 columns.append(target)
 
-        data_train, data_valid = data[data["split"] == "training"], data[data["split"] == "validation"]
-        return data_train[columns], data_valid[columns]
+        data_train, data_test = data[data["split"] == "training"], data[data["split"] == "test"]
+        return data_train[columns], data_test[columns]
 
     def _train_and_predict(self, target):
         X_train = self.data_train.drop(["target_binary", "survival_time"], axis=1)
-        X_valid = self.data_valid.drop(["target_binary", "survival_time"], axis=1)
+        X_test = self.data_test.drop(["target_binary", "survival_time"], axis=1)
         if target == "binary":
-            X_train, X_valid = X_train.drop("death", axis=1), X_valid.drop("death", axis=1)
+            X_train, X_test = X_train.drop("death", axis=1), X_test.drop("death", axis=1)
             y_train = self.data_train["target_binary"]
-            y_valid = self.data_valid["target_binary"]
+            y_test = self.data_test["target_binary"]
             model = self.binary_model
         elif target == "survival":
             y_train = self.data_train["survival_time"]
-            y_valid = self.data_valid["death"], self.data_valid["survival_time"]
+            y_test = self.data_test["death"], self.data_test["survival_time"]
             model = self.survival_model
 
         model.fit(X_train, y_train)
-        y_pred = model.predict(X_valid)
+        y_pred = model.predict(X_test)
         return y_pred
 
     def get_test_predictions(self, times=None):

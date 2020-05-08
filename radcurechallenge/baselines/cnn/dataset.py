@@ -53,7 +53,7 @@ class RadcureDataset(Dataset):
         if self.train:
             self.split = "training"
         else:
-            self.split = "validation"
+            self.split = "test"
 
         clinical_data = pd.read_csv(clinical_data_path)
         self.clinical_data = clinical_data[clinical_data["split"] == self.split]
