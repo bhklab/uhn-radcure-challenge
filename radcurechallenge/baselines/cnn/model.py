@@ -223,7 +223,7 @@ class SimpleCNN(pl.LightningModule):
     def test_epoch_end(self, outputs):
         pred_prob = torch.cat([x["pred_prob"] for x in outputs]).detach().cpu().numpy()
         ids = self.valid_dataset.clinical_data["Study ID"]
-        pd.Series(pred_prob, index=ids, name="predicted").to_csv(self.hparams.pred_save_path)
+        return {"predictions": pd.Series(pred_prob, index=ids, name="predicted")}
 
     @staticmethod
     def add_model_specific_args(parent_parser):
