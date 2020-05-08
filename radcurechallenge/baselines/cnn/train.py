@@ -30,7 +30,8 @@ def main(hparams):
                                    "simplecnn_{epoch:02d}-{tuning_loss:.2e}-{roc_auc:.2f}")
     checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path,
                                           save_top_k=5,
-                                          monitor="roc_auc")
+                                          monitor="roc_auc",
+                                          mode="max")
     model = SimpleCNN(hparams)
     trainer = Trainer.from_argparse_args(hparams)
     trainer.logger = logger
