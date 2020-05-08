@@ -1,12 +1,9 @@
+import os
 from argparse import ArgumentParser
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
-from sklearn.metrics import roc_curve, precision_recall_curve
-
-from ...evaluation import evaluate_binary, evaluate_survival
 from .base import SimpleBaseline
 
 
@@ -14,6 +11,9 @@ np.random.seed(42)
 
 
 def main(args):
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+
     clinical_columns = [
         "age at dx",
         "Sex_Male",
@@ -63,57 +63,29 @@ def main(args):
     radiomics = pd.read_csv(args.radiomics_data_path)
 
     baselines = {
-        "clinical_baseline": SimpleBaseline(clinical,
-                                            max_features_to_select=0,
-                                            colnames=clinical_columns,
-                                            n_jobs=args.n_jobs),
-        "radiomics_baseline": SimpleBaseline(radiomics,
-                                             max_features_to_select=args.max_features_to_select,
-                                             colnames=radiomics_columns,
-                                             n_jobs=args.n_jobs),
-        "volume_baseline": SimpleBaseline(radiomics,
-                                          max_features_to_select=0,
-                                          colnames=["original_shape_MeshVolume"],
-                                          n_jobs=args.n_jobs)
+        "clinical": SimpleBaseline(clinical,
+                                   max_features_to_select=0,
+                                   colnames=clinical_columns,
+                                   n_jobs=args.n_jobs),
+        "radiomics": SimpleBaseline(radiomics,
+                                    max_features_to_select=args.max_features_to_select,
+                                    colnames=radiomics_columns,
+                                    n_jobs=args.n_jobs),
+        "volume": SimpleBaseline(radiomics,
+                                 max_features_to_select=0,
+                                 colnames=["original_shape_MeshVolume"],
+                                 n_jobs=args.n_jobs)
     }
 
-    results = []
-    binary_predictions = []
+    valid_ids = clinical.loc[clinical["split"] == "validation", "Study ID"]
     for name, baseline in baselines.items():
-        true, pred = baseline.get_test_predictions()
-        results_binary = evaluate_binary(true["binary"],
-                                         pred["binary"],
-                                         n_permutations=args.n_permutations,
-                                         n_jobs=args.n_jobs)
-        results_survival = evaluate_survival(true["survival_event"],
-                                             true["survival_time"],
-                                             pred["survival_event"],
-                                             pred["survival_time"],
-                                             n_permutations=args.n_permutations,
-                                             n_jobs=args.n_jobs)
-        results.append({"name": name, **results_binary, **results_survival})
-        binary_predictions.append({"name": name, "true": true["binary"], "pred": pred["binary"][:, 1]})
+        pred = baseline.get_test_predictions()
+        survival_time = pred.pop("survival_time")
+        for i, col in enumerate(survival_time.T):
+            pred[f"survival_time_{i}"] = col
 
-    results = pd.DataFrame(results)
-    results.to_csv(args.output_path, index=False)
-
-    if args.plot:
-        fig, ax = plt.subplots(1, 2, figsize=(13, 6))
-        for p in binary_predictions:
-            fpr, tpr, _ = roc_curve(p["true"], p["pred"])
-            ax[0].plot([0, 1], [0, 1], c="grey", linestyle="--")
-            ax[0].plot(fpr, tpr, label=p["name"].replace("_baseline", ""))
-            ax[0].set_xlabel("False positive rate")
-            ax[0].set_ylabel("True positive rate")
-            ax[0].set_title("ROC curves")
-            precision, recall, _ = precision_recall_curve(p["true"], p["pred"])
-            ax[1].plot(recall, precision)
-            ax[1].set_xlabel("Recall")
-            ax[1].set_ylabel("Precision")
-            ax[1].set_title("Precision-recall curves")
-            np.save(f"pred_{p['name']}.npy", p["pred"], pred)
-        fig.legend()
-        fig.savefig(args.output_path.replace(".csv", ".png"), dpi=300)
+        out_path = os.path.join(args.output_path, f"baseline_{name}.csv")
+        pd.DataFrame(pred, index=valid_ids).to_csv(out_path)
 
 
 if __name__ == "__main__":
@@ -128,8 +100,6 @@ if __name__ == "__main__":
                         help="Maximum number of features in the radiomics model.")
     parser.add_argument("--n_permutations", type=int, default=5000,
                         help="How many random permutations to use when evaluating significance.")
-    parser.add_argument("--plot", action="store_true",
-                        help="Plot ROC and precision-recall curves for each model.")
     parser.add_argument("--n_jobs", type=int, default=1,
                         help="Number of parallel processes to use.")
 

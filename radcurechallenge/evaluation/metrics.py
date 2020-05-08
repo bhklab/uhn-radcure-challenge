@@ -3,7 +3,9 @@ from typing import Tuple, Callable, Dict, Optional
 import numpy as np
 from joblib import Parallel, delayed
 
-from sklearn.metrics import confusion_matrix, roc_auc_score, average_precision_score
+from sklearn.metrics import (confusion_matrix, roc_auc_score,
+                             average_precision_score, roc_curve,
+                             precision_recall_curve)
 
 from lifelines import KaplanMeierFitter
 from lifelines.utils import concordance_index
@@ -234,3 +236,26 @@ def evaluate_survival(event_true: np.ndarray,
     }
 
 
+def plot_roc_curve(true, predicted, label=None, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    fpr, tpr, _ = roc_curve(true, predicted)
+    ax.plot([0, 1], [0, 1], c="grey", linestyle="--")
+    ax.plot(fpr, tpr, label=label)
+    ax.set_xlabel("False positive rate")
+    ax.set_ylabel("True positive rate")
+    ax.set_title("ROC curve")
+    return ax
+
+
+def plot_pr_curve(true, predicted, label=None, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    precision, recall, _ = precision_recall_curve(true, predicted)
+    ax.plot(recall, precision, label=label)
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_title("Precision-recall curve")
+    return ax

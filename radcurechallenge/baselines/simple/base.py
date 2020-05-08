@@ -155,7 +155,7 @@ class BinaryModel:
             Predicted positive class probabilities for each row in `X`.
 
         """
-        return self.model.predict_proba(X)
+        return self.model.predict_proba(X)[:, 1]
 
 
 class SurvivalModel:
@@ -299,7 +299,7 @@ class SimpleBaseline:
         data_train, data_valid = data[data["split"] == "training"], data[data["split"] == "validation"]
         return data_train[columns], data_valid[columns]
 
-    def _predict(self, target):
+    def _train_and_predict(self, target):
         X_train = self.data_train.drop(["target_binary", "survival_time"], axis=1)
         X_valid = self.data_valid.drop(["target_binary", "survival_time"], axis=1)
         if target == "binary":
@@ -314,20 +314,15 @@ class SimpleBaseline:
 
         model.fit(X_train, y_train)
         y_pred = model.predict(X_valid)
-        return y_valid, y_pred
+        return y_pred
 
     def get_test_predictions(self, times=None):
-        true_binary, pred_binary = self._predict("binary")
-        (true_event, true_time), (pred_event, pred_time) = self._predict("survival")
+        pred_binary = self._train_and_predict("binary")
+        pred_event, pred_time = self._train_and_predict("survival")
 
-        true = {
-            "binary": true_binary,
-            "survival_event": true_event,
-            "survival_time": true_time
-        }
         pred = {
             "binary": pred_binary,
             "survival_event": pred_event,
             "survival_time": pred_time
         }
-        return true, pred
+        return pred
