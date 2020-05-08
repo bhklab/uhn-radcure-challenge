@@ -36,6 +36,7 @@ def main(hparams):
     trainer.logger = logger
     trainer.checkpoint_callback = checkpoint_callback
     trainer.fit(model)
+    trainer.test()
 
 
 if __name__ == "__main__":

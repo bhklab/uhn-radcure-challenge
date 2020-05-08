@@ -10,6 +10,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import MultiStepLR
 from torchvision.transforms import Compose
 
+import pandas as pd
 from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
@@ -220,7 +221,9 @@ class SimpleCNN(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        return self.validation_epoch_end(outputs)
+        pred_prob = torch.cat([x["pred_prob"] for x in outputs]).detach().cpu().numpy()
+        ids = self.valid_dataset.clinical_data["Study ID"]
+        pd.Series(pred_prob, index=ids, name="predicted").to_csv(self.hparams.pred_save_path)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
