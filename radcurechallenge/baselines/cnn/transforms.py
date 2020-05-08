@@ -13,8 +13,9 @@ class ToTensor:
 
 
 class RandomInPlaneRotation:
-    def __init__(self, max_angle):
+    def __init__(self, max_angle, fill_value=-1024.):
         self.max_angle = max_angle
+        self.fill_value = fill_value
 
     def __call__(self, x):
         angle = -self.max_angle + 2 * self.max_angle * torch.rand(1).item()
@@ -28,7 +29,7 @@ class RandomInPlaneRotation:
             angle,  # the angle of rotation around the z-axis, in radians -> axial rotation
             (0., 0., 0.)  # no translation
         )
-        return sitk.Resample(x, x, rotation)
+        return sitk.Resample(x, x, rotation, sitk.sitkLinear, self.fill_value)
 
 
 class RandomFlip:

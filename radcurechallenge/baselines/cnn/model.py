@@ -85,13 +85,14 @@ class SimpleCNN(pl.LightningModule):
         ])
         # apply data augmentation only on training set
         train_transform = Compose([
-            Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
             RandomInPlaneRotation(pi / 6),
             RandomFlip(0),
             # RandomFlip(1),
             RandomFlip(2),
-            RandomNoise(),
-            ToTensor()
+            Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
+            RandomNoise(.05),
+            ToTensor(),
+            #lambda x: torch.randn(1, 50, 50, 50)
         ])
         train_dataset = RadcureDataset(self.hparams.root_directory,
                                        self.hparams.clinical_data_path,
@@ -114,6 +115,7 @@ class SimpleCNN(pl.LightningModule):
         train_targets = train_dataset.clinical_data["target_binary"]
         train_indices, tune_indices = train_test_split(train_indices, test_size=tune_size, stratify=train_targets)
         train_dataset, tune_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, tune_indices)
+        tune_dataset.dataset.transform = valid_transform
         self.pos_weight = torch.tensor(compute_class_weight("balanced", [0, 1], train_targets)[1])
 
         self.train_dataset = train_dataset
