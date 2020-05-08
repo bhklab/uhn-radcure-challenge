@@ -60,6 +60,10 @@ if __name__ == "__main__":
                         default="./data/data_cache",
                         help=("Directory where the preprocessed data "
                               "will be saved."))
+    parser.add_argument("--pred_save_path",
+                        type=str,
+                        default="./data/predictions/baseline_cnn.csv",
+                        help="Directory where final predictions will be saved.")
     parser.add_argument("--num_workers",
                         type=int,
                         default=1,
