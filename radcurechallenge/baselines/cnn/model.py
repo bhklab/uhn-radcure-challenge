@@ -142,9 +142,15 @@ class SimpleCNN(pl.LightningModule):
             img = (self.valid_dataset[i.item()][0][:, :, 25] - 3.) / 6.
             valid_imgs.append(img)
 
-        self.logger.experiment.add_images("training", torch.stack(train_imgs, dim=0), dataformat="NCHW")
-        self.logger.experiment.add_images("tuning", torch.stack(tune_imgs, dim=0), dataformat="NCHW")
-        self.logger.experiment.add_images("validation", torch.stack(valid_imgs, dim=0), dataformat="NCHW")
+        self.logger.experiment.add_images("training",
+                                          torch.stack(train_imgs, dim=0),
+                                          dataformats="NCHW")
+        self.logger.experiment.add_images("tuning",
+                                          torch.stack(tune_imgs, dim=0),
+                                          dataformats="NCHW")
+        self.logger.experiment.add_images("validation",
+                                          torch.stack(valid_imgs, dim=0),
+                                          dataformats="NCHW")
 
 
     def train_dataloader(self):
@@ -208,7 +214,7 @@ class SimpleCNN(pl.LightningModule):
             "tuning/roc_auc": roc_auc,
             "tuning/average_precision": avg_prec
         }
-        return {"tuning_loss": loss, "log": log}
+        return {"tuning_loss": loss, "roc_auc": roc_auc, "log": log}
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)

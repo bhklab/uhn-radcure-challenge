@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import TestTubeLogger
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from .model import SimpleCNN
 
@@ -18,17 +18,23 @@ def main(hparams):
     #     raise ValueError(("Training on CPU is not supported, please run again "
     #                       "on a system with GPU and '--gpus' > 0."))
 
-    checkpoint_path = os.path.join(hparams.logdir,
-                                   "model_checkpoints",
-                                   "simplecnn_{epoch:02d}-{tune_loss:.2e}-{roc_auc:.2f}")
+    slurm_id = os.environ.get("SLURM_JOBID")
+    if slurm_id is None:
+        slurm_id = 0
+    version = str(slurm_id)
+    logger = TensorBoardLogger(hparams.logdir,
+                               name=hparams.exp_name,
+                               version=version)
+    checkpoint_path = os.path.join(logger.experiment.get_logdir(),
+                                   "checkpoints",
+                                   "simplecnn_{epoch:02d}-{tuning_loss:.2e}-{roc_auc:.2f}")
     checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path,
                                           save_top_k=5,
-                                          monitor="tuning_loss")
-    logger = TestTubeLogger(os.path.join(hparams.logdir, "test_tube_logs"), name="simplecnn")
+                                          monitor="roc_auc")
     model = SimpleCNN(hparams)
-    trainer = Trainer.from_argparse_args(hparams,
-                                         logger=logger,
-                                         checkpoint_callback=checkpoint_callback)
+    trainer = Trainer.from_argparse_args(hparams)
+    trainer.logger = logger
+    trainer.checkpoint_callback = checkpoint_callback
     trainer.fit(model)
 
 
@@ -55,6 +61,10 @@ if __name__ == "__main__":
                         type=int,
                         default=1,
                         help="Number of worker processes to use for data loading.")
+    parser.add_argument("--exp_name",
+                        type=str,
+                        default="simple_cnn",
+                        help="Experiment name for logging purposes.")
 
     parser = SimpleCNN.add_model_specific_args(parser)
 
