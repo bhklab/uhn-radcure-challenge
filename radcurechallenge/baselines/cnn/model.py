@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Subset
 from torch.optim import Adam
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import MultiStepLR
 from torchvision.transforms import Compose
 
 from sklearn.metrics import roc_auc_score, average_precision_score
@@ -168,8 +168,8 @@ class SimpleCNN(pl.LightningModule):
                          lr=self.hparams.lr,
                          weight_decay=self.hparams.weight_decay)
         scheduler = {
-                "scheduler": ReduceLROnPlateau(optimizer),
-                "monitor": "tuning_loss"
+            "scheduler": MultiStepLR(optimizer, milestones=[100, 300]),
+            "monitor": "tuning_loss",
         }
         return [optimizer], [scheduler]
 
