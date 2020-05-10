@@ -21,7 +21,7 @@ from .transforms import *
 
 class SimpleCNN(pl.LightningModule):
     r"""A simple convolutional neural network (CNN) for survival prediction.
-    
+
 
     The prognostic task is formulated as binary classification of 2-year
     survival. The architecture is based on [1]_, but with the top

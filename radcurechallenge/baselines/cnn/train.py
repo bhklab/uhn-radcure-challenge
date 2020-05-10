@@ -20,8 +20,9 @@ def main(hparams):
 
     slurm_id = os.environ.get("SLURM_JOBID")
     if slurm_id is None:
-        slurm_id = 0
-    version = str(slurm_id)
+        version = None
+    else:
+        version = str(slurm_id)
     logger = TensorBoardLogger(hparams.logdir,
                                name=hparams.exp_name,
                                version=version)
