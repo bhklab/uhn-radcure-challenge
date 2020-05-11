@@ -170,12 +170,12 @@ class SimpleCNN(pl.LightningModule):
                                        cache_dir=self.hparams.cache_dir,
                                        num_workers=self.hparams.num_workers)
         test_dataset = RadcureDataset(self.hparams.root_directory,
-                                       self.hparams.clinical_data_path,
-                                       self.hparams.patch_size,
-                                       train=False,
-                                       transform=test_transform,
-                                       cache_dir=self.hparams.cache_dir,
-                                       num_workers=self.hparams.num_workers)
+                                      self.hparams.clinical_data_path,
+                                      self.hparams.patch_size,
+                                      train=False,
+                                      transform=test_transform,
+                                      cache_dir=self.hparams.cache_dir,
+                                      num_workers=self.hparams.num_workers)
 
         # make sure the validation set is balanced
         val_size = floor(.1 / .7 * len(train_dataset)) # use 10% of all data for validation
@@ -184,12 +184,12 @@ class SimpleCNN(pl.LightningModule):
         train_indices, val_indices = train_test_split(train_indices, test_size=val_size, stratify=train_targets)
         train_dataset, val_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, val_indices)
         val_dataset.dataset.transform = test_transform
+        train_targets = train_dataset.dataset.clinical_data["target_binary"]
         self.pos_weight = torch.tensor(compute_class_weight("balanced", [0, 1], train_targets)[1])
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
-
 
     def on_train_start(self):
         print("Dataset sizes")
@@ -198,32 +198,33 @@ class SimpleCNN(pl.LightningModule):
         print(f"validation: {len(self.val_dataset)}")
         print(f"test:       {len(self.test_dataset)}")
 
-        # plot a few example images from the training, validation
-        # and test datasets
-        train_imgs = []
-        for i in torch.randint(0, len(self.train_dataset), (5,)):
-            img = (self.train_dataset[i.item()][0][:, :, 25] - 3.) / 6.
-            train_imgs.append(img)
+        if self.logger is not None:
+            # plot a few example images from the training, validation
+            # and test datasets
+            train_imgs = []
+            for i in torch.randint(0, len(self.train_dataset), (5,)):
+                img = (self.train_dataset[i.item()][0][:, :, 25] - 3.) / 6.
+                train_imgs.append(img)
 
-        val_imgs = []
-        for i in torch.randint(0, len(self.val_dataset), (5,)):
-            img = (self.val_dataset[i.item()][0][:, :, 25] - 3.) / 6.
-            val_imgs.append(img)
+            val_imgs = []
+            for i in torch.randint(0, len(self.val_dataset), (5,)):
+                img = (self.val_dataset[i.item()][0][:, :, 25] - 3.) / 6.
+                val_imgs.append(img)
 
-        test_imgs = []
-        for i in torch.randint(0, len(self.test_dataset), (5,)):
-            img = (self.test_dataset[i.item()][0][:, :, 25] - 3.) / 6.
-            test_imgs.append(img)
+            test_imgs = []
+            for i in torch.randint(0, len(self.test_dataset), (5,)):
+                img = (self.test_dataset[i.item()][0][:, :, 25] - 3.) / 6.
+                test_imgs.append(img)
 
-        self.logger.experiment.add_images("training",
-                                          torch.stack(train_imgs, dim=0),
-                                          dataformats="NCHW")
-        self.logger.experiment.add_images("validation",
-                                          torch.stack(val_imgs, dim=0),
-                                          dataformats="NCHW")
-        self.logger.experiment.add_images("test",
-                                          torch.stack(test_imgs, dim=0),
-                                          dataformats="NCHW")
+            self.logger.experiment.add_images("training",
+                                            torch.stack(train_imgs, dim=0),
+                                            dataformats="NCHW")
+            self.logger.experiment.add_images("validation",
+                                            torch.stack(val_imgs, dim=0),
+                                            dataformats="NCHW")
+            self.logger.experiment.add_images("test",
+                                            torch.stack(test_imgs, dim=0),
+                                            dataformats="NCHW")
 
 
     def train_dataloader(self):
