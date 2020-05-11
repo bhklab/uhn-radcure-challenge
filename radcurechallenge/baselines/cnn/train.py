@@ -37,8 +37,7 @@ def main(hparams):
     trainer.logger = logger
     trainer.checkpoint_callback = checkpoint_callback
     trainer.fit(model)
-    predictions = trainer.test()["predictions"]
-    predictions.to_csv(hparams.pred_save_path)
+    trainer.test()
 
 
 if __name__ == "__main__":

@@ -21,7 +21,6 @@ from .transforms import *
 
 class SimpleCNN(pl.LightningModule):
     r"""A simple convolutional neural network (CNN) for survival prediction.
-    
 
     The prognostic task is formulated as binary classification of 2-year
     survival. The architecture is based on [1]_, but with the top
@@ -250,7 +249,7 @@ class SimpleCNN(pl.LightningModule):
                          lr=self.hparams.lr,
                          weight_decay=self.hparams.weight_decay)
         scheduler = {
-            "scheduler": MultiStepLR(optimizer, milestones=[100, 300]),
+            "scheduler": MultiStepLR(optimizer, milestones=[60, 160, 360]),
             "monitor": "val_loss",
         }
         return [optimizer], [scheduler]
@@ -295,8 +294,18 @@ class SimpleCNN(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         pred_prob = torch.cat([x["pred_prob"] for x in outputs]).detach().cpu().numpy()
+        y = torch.cat([x["y"] for x in outputs]).detach().cpu().numpy()
+        try:
+            roc_auc = roc_auc_score(y, pred_prob)
+        except ValueError:
+            roc_auc = float("nan")
+        avg_prec = average_precision_score(y, pred_prob)
         ids = self.test_dataset.clinical_data["Study ID"]
         pd.Series(pred_prob, index=ids, name="binary").to_csv(self.hparams.pred_save_path)
+        return {
+            "roc_auc": roc_auc,
+            "average_precision": avg_prec
+        }
 
     @staticmethod
     def add_model_specific_args(parent_parser):
