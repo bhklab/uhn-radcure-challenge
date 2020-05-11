@@ -40,7 +40,7 @@ class RadcureDataset(Dataset):
                  patch_size=50,
                  target_col="target_binary",
                  train=True,
-                 cache_dir=".data_cache/",
+                 cache_dir="data_cache/",
                  transform=None,
                  num_workers=1):
         self.root_directory = root_directory

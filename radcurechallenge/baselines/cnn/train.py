@@ -1,6 +1,7 @@
 import os
 from argparse import ArgumentParser
 
+import numpy as np
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -8,6 +9,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from .model import SimpleCNN
 
+np.random.seed(42)
 torch.manual_seed(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -28,7 +30,7 @@ def main(hparams):
                                version=version)
     checkpoint_path = os.path.join(logger.experiment.get_logdir(),
                                    "checkpoints",
-                                   "simplecnn_{epoch:02d}-{tuning_loss:.2e}-{roc_auc:.2f}")
+                                   "simplecnn_{epoch:02d}-{val_loss:.2e}-{roc_auc:.2f}")
     checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path,
                                           save_top_k=5,
                                           monitor="roc_auc",
@@ -43,6 +45,7 @@ def main(hparams):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser = SimpleCNN.add_model_specific_args(parser)
     parser = Trainer.add_argparse_args(parser)
 
     parser.add_argument("root_directory",
@@ -72,8 +75,6 @@ if __name__ == "__main__":
                         type=str,
                         default="simple_cnn",
                         help="Experiment name for logging purposes.")
-
-    parser = SimpleCNN.add_model_specific_args(parser)
 
     hparams = parser.parse_args()
     main(hparams)
