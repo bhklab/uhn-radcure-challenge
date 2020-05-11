@@ -12,11 +12,11 @@ torch.manual_seed(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+
 def main(hparams):
-    # XXX uncomment before release
-    # if args.gpus == 0:
-    #     raise ValueError(("Training on CPU is not supported, please run again "
-    #                       "on a system with GPU and '--gpus' > 0."))
+    if hparams.gpus == 0:
+        raise ValueError(("Training on CPU is not supported, please run again "
+                          "on a system with GPU and '--gpus' > 0."))
 
     slurm_id = os.environ.get("SLURM_JOBID")
     if slurm_id is None:
