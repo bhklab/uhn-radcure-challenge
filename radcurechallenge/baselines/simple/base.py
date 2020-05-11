@@ -270,7 +270,7 @@ class SurvivalModel:
         # GridSearchCV.predict does not support keyword arguments
         pred_surv = self.model.best_estimator_.predict(X_transformed, times=times).T
         setattr(self.model.best_estimator_["sklearncoxphfitter"], "_predict_method", "predict_partial_hazard")
-        pred_risk = -self.model.predict(X_transformed)
+        pred_risk = self.model.predict(X_transformed)
         return pred_risk, pred_surv
 
 
