@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from .metrics import evaluate_binary, evaluate_survival, plot_roc_curve, plot_pr_curve
+from .metrics import (evaluate_binary, evaluate_survival,
+                      plot_roc_curve, plot_pr_curve)
 
 
 def main(args):

@@ -49,10 +49,10 @@ In all basic models, logistic regression was used for binarized 2-year survival 
 **Convolutional neural net (CNN):**
 - Deep learning model adapted from (Hosny et al, 2018) (binary classification)
 
-The code used to train the baseline models can be found in [radcurechallenge/baselines](radcurechallenge/baselines).
+The code used to train the baseline models can be found in [radcurechallenge/baselines](radcurechallenge/baselines). Feel free to use it as a starting point for your submission.
 
 ### Baseline results
-*Note:* higher is better, except for IBS. P values were computed from 5000 iterations of randomized permutation test.
+*Note:* higher is better, except for IBS. P values were computed from 5000 iterations of randomized permutation test. For random predictions, AUC = CI = .5, while AP depends on the class balance.
 | Model     | ROC AUC (binary) | AP (binary)     | CI (survival)   | IBS (survival)   |
 |-----------|------------------|-----------------|-----------------|------------------|
 | radiomics | 0.71 (p < .001)  | 0.33 (p < .001) | 0.73 (p < .001) | 0.049 (p < .001) |

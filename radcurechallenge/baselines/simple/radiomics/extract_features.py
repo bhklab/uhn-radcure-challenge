@@ -1,3 +1,4 @@
+"""Extract PyRadiomics features from the training and test datasets."""
 import os
 import tempfile
 import subprocess
@@ -6,22 +7,24 @@ from argparse import ArgumentParser
 import pandas as pd
 
 
-def extract_features(image_directory, id_split_path, output_path, params_file, n_jobs=1):
-    data = pd.read_csv(id_split_path)[["Study ID", "split", "target_binary", "survival_time", "death"]]
+def extract_features(args):
+    data = pd.read_csv(args.id_split_path)[["Study ID", "split", "target_binary", "survival_time", "death"]]
     data["Image"] = data.apply(lambda x: os.path.join(
-        image_directory, x["split"], "images", x["Study ID"] + ".nrrd"), axis=1)
+        args.image_directory, x["split"], "images", x["Study ID"] + ".nrrd"), axis=1)
     data["Mask"] = data.apply(lambda x: os.path.join(
-        image_directory, x["split"], "masks", x["Study ID"] + ".nrrd"), axis=1)
+        args.image_directory, x["split"], "masks", x["Study ID"] + ".nrrd"), axis=1)
     tmp_path = os.path.join(tempfile.gettempdir(), "radiomics.csv")
     data.to_csv(tmp_path, index=False) # this is necessary since pyradiomics won't
                                        # overwrite an existing file for some reason
+    # using the pyradiomics batch command is easier than setting up the
+    # feature extractor object
     command = [
         "pyradiomics",
         tmp_path,
-        "-o", output_path,
+        "-o", args.output_path,
         "-f", "csv",
-        "--jobs", str(n_jobs),
-        "--param", params_file
+        "--jobs", str(args.n_jobs),
+        "--param", args.params_file
     ]
     subprocess.run(command)
     os.remove(tmp_path)
@@ -46,5 +49,4 @@ if __name__ == "__main__":
                         default=1,
                         help="Number of parallel processes to use.")
     args = parser.parse_args()
-    extract_features(args.image_directory, args.id_split_path,
-                     args.output_path, args.params_file, args.n_jobs)
+    extract_features(args)

@@ -1,10 +1,12 @@
 import os
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
 from joblib import Parallel, delayed
 
+import torch
 from torch.utils.data import Dataset
 
 
@@ -33,16 +35,44 @@ def find_centroid(mask: sitk.Image) -> np.ndarray:
 class RadcureDataset(Dataset):
     """Dataset class used in simple CNN baseline training.
 
-    The images are loaded using SimpleITK and """
+    The images are loaded using SimpleITK, preprocessed and cached for faster
+    retrieval during training.
+    """
     def __init__(self,
-                 root_directory,
-                 clinical_data_path,
-                 patch_size=50,
-                 target_col="target_binary",
-                 train=True,
-                 cache_dir="data_cache/",
-                 transform=None,
-                 num_workers=1):
+                 root_directory: str,
+                 clinical_data_path: str,
+                 patch_size: int = 50,
+                 target_col: str = "target_binary",
+                 train: bool = True,
+                 cache_dir: str = "data_cache/",
+                 transform: Optional[Callable] = None,
+                 num_workers: int = 1):
+        """Initialize the class.
+
+        If the cache directory does not exist, the dataset is first
+        preprocessed and cached.
+
+        Parameters
+        ----------
+        root_directory
+            Path to directory containing the training and test images and
+            segmentation masks.
+        clinical_data_path
+            Path to a CSV file with subject metadata and clinical information.
+        patch_size
+            The size of isotropic patch to extract around the tumour centre.
+        target_col
+            The name of a column in the clinical dataframe used as prediction
+            target.
+        train
+            Whether to load the training or test set.
+        cache_dir
+            Path to directory where the preprocessed images will be cached.
+        transform
+            Callable used to transform the images after preprocessing.
+        num_workers
+            Number of parallel processes to use for data preprocessing.
+        """
         self.root_directory = root_directory
         self.patch_size = patch_size
         self.target_col = target_col
@@ -58,18 +88,25 @@ class RadcureDataset(Dataset):
         clinical_data = pd.read_csv(clinical_data_path)
         self.clinical_data = clinical_data[clinical_data["split"] == self.split]
 
+        # TODO we should also re-create the cache when the patch size is changed
         self.cache_path = os.path.join(cache_dir, self.split)
         if not os.path.exists(self.cache_path):
             os.makedirs(self.cache_path)
             self._prepare_data()
 
     def _prepare_data(self):
-        Parallel(n_jobs=self.num_workers)(delayed(self._preprocess_subject)(subject_id) for subject_id in self.clinical_data["Study ID"])
+        """Preprocess and cache the dataset."""
+        Parallel(n_jobs=self.num_workers)(
+            delayed(self._preprocess_subject)(subject_id)
+            for subject_id in self.clinical_data["Study ID"])
 
-    def _preprocess_subject(self, subject_id):
+    def _preprocess_subject(self, subject_id: str):
+        """Preprocess and cache a single subject."""
         # load image and GTV mask
-        path = os.path.join(self.root_directory, self.split, "{}", f"{subject_id}.nrrd")
-        image, mask = sitk.ReadImage(path.format("images")), sitk.ReadImage(path.format("masks"))
+        path = os.path.join(self.root_directory, self.split,
+                            "{}", f"{subject_id}.nrrd")
+        image = sitk.ReadImage(path.format("images"))
+        mask = sitk.ReadImage(path.format("masks"))
 
         # crop the image to (patch_size)^3 patch around the tumour centre
         tumour_centre = find_centroid(mask)
@@ -85,11 +122,26 @@ class RadcureDataset(Dataset):
         reference_image.SetOrigin(image.GetOrigin())
         image = sitk.Resample(image, reference_image)
 
+        # window image intensities to [-500, 1000] HU range
         image = sitk.Clamp(image, sitk.sitkFloat32, -500, 1000)
 
         sitk.WriteImage(image, os.path.join(self.cache_path, f"{subject_id}.nrrd"), True)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
+        """Get an input-target pair from the dataset.
+
+        The images are assumed to be preprocessed and cached.
+
+        Parameters
+        ----------
+        idx
+            The index to retrieve (note: this is not the subject ID).
+
+        Returns
+        -------
+        tuple of torch.Tensor and int
+            The input-target pair.
+        """
         subject_id = self.clinical_data.iloc[idx]["Study ID"]
         target = self.clinical_data.iloc[idx][self.target_col]
 
@@ -101,7 +153,8 @@ class RadcureDataset(Dataset):
 
         return image, target
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the length of the dataset."""
         return len(self.clinical_data)
 
 

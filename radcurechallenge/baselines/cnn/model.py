@@ -137,16 +137,16 @@ class SimpleCNN(pl.LightningModule):
             nn.init.constant_(m.bias, 0.)
         elif isinstance(m, nn.Linear):
             nn.init.kaiming_normal_(m.weight)
+            # initialize the final bias so that the predictied probability at
+            # init is equal to the proportion of positive samples
             nn.init.constant_(m.bias, -1.5214691)
 
     def prepare_data(self):
         """Preprocess the data and create training, validation and test
         datasets.
 
-
-        Notes
-        -----
-        To avoid confusion with """
+        This method is called automatically by pytorch-lightning.
+        """
         test_transform = Compose([
             Normalize(self.hparams.dataset_mean, self.hparams.dataset_std),
             ToTensor()
@@ -184,6 +184,7 @@ class SimpleCNN(pl.LightningModule):
         train_indices, val_indices = train_test_split(train_indices, test_size=val_size, stratify=train_targets)
         train_dataset, val_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, val_indices)
         val_dataset.dataset.transform = test_transform
+        # use only the new training set to compute the class weight 
         train_targets = train_dataset.dataset.clinical_data["target_binary"]
         self.pos_weight = torch.tensor(compute_class_weight("balanced", [0, 1], train_targets)[1])
 
@@ -192,6 +193,7 @@ class SimpleCNN(pl.LightningModule):
         self.test_dataset = test_dataset
 
     def on_train_start(self):
+        """This method is called automatically by pytorch-lightning."""
         print("Dataset sizes")
         print("=============")
         print(f"training:   {len(self.train_dataset)}")
@@ -228,24 +230,28 @@ class SimpleCNN(pl.LightningModule):
 
 
     def train_dataloader(self):
+        """This method is called automatically by pytorch-lightning."""
         return DataLoader(self.train_dataset,
                           batch_size=self.hparams.batch_size,
                           num_workers=self.hparams.num_workers,
                           shuffle=True)
 
     def val_dataloader(self):
+        """This method is called automatically by pytorch-lightning."""
         return DataLoader(self.val_dataset,
                           batch_size=self.hparams.batch_size,
                           num_workers=self.hparams.num_workers,
                           shuffle=False)
 
     def test_dataloader(self):
+        """This method is called automatically by pytorch-lightning."""
         return DataLoader(self.test_dataset,
                           batch_size=self.hparams.batch_size,
                           num_workers=self.hparams.num_workers,
                           shuffle=False)
 
     def configure_optimizers(self):
+        """This method is called automatically by pytorch-lightning."""
         optimizer = Adam(self.parameters(),
                          lr=self.hparams.lr,
                          weight_decay=self.hparams.weight_decay)
@@ -256,6 +262,10 @@ class SimpleCNN(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def training_step(self, batch, batch_idx):
+        """Run a single training step on a batch of samples.
+
+        This method is called automatically by pytorch-lightning.
+        """
         x, y = batch
         output = self.forward(x).squeeze(1)
         loss = F.binary_cross_entropy_with_logits(output,
@@ -265,6 +275,10 @@ class SimpleCNN(pl.LightningModule):
         return {'loss': loss, 'log': logs}
 
     def validation_step(self, batch, batch_idx):
+        """Run a single validation step on a batch of samples.
+
+        This method is called automatically by pytorch-lightning.
+        """
         x, y = batch
         output = self.forward(x).squeeze(1)
         loss = F.binary_cross_entropy_with_logits(output,
@@ -274,6 +288,10 @@ class SimpleCNN(pl.LightningModule):
         return {"loss": loss, "pred_prob": pred_prob, "y": y}
 
     def validation_epoch_end(self, outputs):
+        """Compute performance metrics on the validation dataset.
+
+        This method is called automatically by pytorch-lightning.
+        """
         loss = torch.stack([x["loss"] for x in outputs]).mean()
         pred_prob = torch.cat([x["pred_prob"] for x in outputs]).detach().cpu().numpy()
         y = torch.cat([x["y"] for x in outputs]).detach().cpu().numpy()
@@ -291,9 +309,17 @@ class SimpleCNN(pl.LightningModule):
         return {"val_loss": loss, "roc_auc": roc_auc, "log": log}
 
     def test_step(self, batch, batch_idx):
+        """Run a single test step on a batch of samples.
+
+        This method is called automatically by pytorch-lightning.
+        """
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
+        """Compute performance metrics on the test dataset.
+
+        This method is called automatically by pytorch-lightning.
+        """
         pred_prob = torch.cat([x["pred_prob"] for x in outputs]).detach().cpu().numpy()
         y = torch.cat([x["y"] for x in outputs]).detach().cpu().numpy()
         try:
@@ -309,7 +335,8 @@ class SimpleCNN(pl.LightningModule):
         }
 
     @staticmethod
-    def add_model_specific_args(parent_parser):
+    def add_model_specific_args(parent_parser: ArgumentParser):
+        """Add model-specific hyperparameters to the parent parser."""
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         parser.add_argument("--batch_size",
                             type=int,

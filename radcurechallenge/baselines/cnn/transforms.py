@@ -1,23 +1,62 @@
-"""Augmentation transforms operating on 3D tensors."""
-
+"""Augmentation transforms operating on SimpleITK images."""
 import numpy as np
 import SimpleITK as sitk
 import torch
 
 
 class ToTensor:
-    def __call__(self, image):
+    """Convert a SimpleITK image to torch.Tensor."""
+    def __call__(self, image: sitk.Image) -> torch.Tensor:
+        """Apply the transform.
+
+        Parameters
+        ----------
+        image
+            Image to convert to tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            The converted tensor.
+        """
         array = sitk.GetArrayFromImage(image)
         tensor = torch.from_numpy(array).unsqueeze(0).float()
         return tensor
 
+    def __repr__(self):
+        return f"self.__class__.__name__}()"
+
 
 class RandomInPlaneRotation:
-    def __init__(self, max_angle, fill_value=-1024.):
+    """Rotate the image in xy plane by a randomly chosen angle."""
+    def __init__(self, max_angle: float, fill_value: float = -1024.):
+        """Initialize the transform.
+
+        Parameters
+        ----------
+        max_angle
+            The maximum absolute value of rotation angle.
+            The angle of rotation is chosen uniformly at random from
+            [-max_angle, max_angle].
+        fill_value
+            The value used to fill voxels outside image support.
+        """
         self.max_angle = max_angle
         self.fill_value = fill_value
 
-    def __call__(self, x):
+    def __call__(self, x: sitk.Image) -> sitk.Image:
+        """Apply the transform.
+
+        Parameters
+        ----------
+        image
+            Image to transform.
+
+        Returns
+        -------
+        sitk.Image
+            The transformed image.
+        """
         angle = -self.max_angle + 2 * self.max_angle * torch.rand(1).item()
         rotation_centre = np.array(x.GetSize()) / 2
         rotation_centre = x.TransformContinuousIndexToPhysicalPoint(rotation_centre)
@@ -33,22 +72,62 @@ class RandomInPlaneRotation:
 
 
 class RandomFlip:
-    def __init__(self, dim):
+    """Randomly flip an image along a given axis."""
+    def __init__(self, dim: int):
+        """Initialize the transform.
+
+        Parameters
+        ----------
+        dim
+            The axis along which to flip.
+        """
         self.dim = dim
         self.flip_mask = [i == self.dim for i in range(3)]
 
-    def __call__(self, x):
+    def __call__(self, x: sitk.Image) -> sitk.Image:
+        """Apply the transform.
+
+        Parameters
+        ----------
+        image
+            Image to transform.
+
+        Returns
+        -------
+        sitk.Image
+            The transformed image.
+        """
         if np.random.random() > .5:
             x = sitk.Flip(x, self.flip_mask)
         return x
 
 
 class RandomNoise:
-    def __init__(self, std=1.):
+    """Add zero-mean Gaussian noise to an image."""
+    def __init__(self, std: float = 1.):
+        """Initialize the transform.
+
+        Parameters
+        ----------
+        std
+            The standard deviation of noise.
+        """
         self.std = std
 
-    def __call__(self, x):
-        # use Pytorch random generator for consistent use of seeds
+    def __call__(self, x: sitk.Image) -> sitk.Image:
+        """Apply the transform.
+
+        Parameters
+        ----------
+        image
+            Image to transform.
+
+        Returns
+        -------
+        sitk.Image
+            The transformed image.
+        """
+        # use Pytorch random generator to be consistent with seeds
         noise = (torch.randn(x.GetSize()[::-1]) * self.std).numpy()
         noise = sitk.GetImageFromArray(noise)
         noise.CopyInformation(x)
@@ -56,10 +135,35 @@ class RandomNoise:
 
 
 class Normalize:
-    def __init__(self, mean, std):
+    """Normalize an image by subtracting the dataset mean and dividing by the
+    dataset standard deviation.
+    """
+    def __init__(self, mean: float, std: float):
+        """Initialize the transform.
+
+        Parameters
+        ----------
+        mean
+            The dataset mean.
+        std
+            The dataset standard deviation.
+        """
         self.mean = mean
         self.std = std
 
-    def __call__(self, x):
+    def __call__(self, x: sitk.Image) -> sitk.Image:
+        """Apply the transform.
+
+        Parameters
+        ----------
+        image
+            Image to transform.
+
+        Returns
+        -------
+        sitk.Image
+            The transformed image.
+        """
         x = (x - self.mean) / self.std
+        # division sometimes silently casts the result to sitk.Float64...
         return sitk.Cast(x, sitk.sitkFloat32)

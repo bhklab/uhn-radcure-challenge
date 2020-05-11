@@ -29,26 +29,28 @@ def main(args):
     radiomics_columns = "firstorder|shape|glcm|glszm|glrlm|gldm|ngtdm"
 
     clinical = pd.read_csv(args.clinical_data_path)
+    # binarize T stage as T1/2 = 0, T3/4 = 1
     clinical["T Stage"] = clinical["T Stage"].map({
-        "T1": "T1/2",
-        "T1a": "T1/2",
-        "T1b": "T1/2",
-        "T2": "T1/2",
+        "T1":     "T1/2",
+        "T1a":    "T1/2",
+        "T1b":    "T1/2",
+        "T2":     "T1/2",
         "T2 (2)": "T1/2",
-        "T3": "T3/4",
+        "T3":     "T3/4",
         "T3 (2)": "T3/4",
-        "T4": "T3/4",
-        "T4a": "T3/4",
-        "T4b": "T3/4"
+        "T4":     "T3/4",
+        "T4a":    "T3/4",
+        "T4b":    "T3/4"
     })
+    # use more fine-grained grouping for N stage
     clinical["N Stage"] = clinical["N Stage"].map({
-        "N0": "N0",
-        "N1": "N1",
-        "N2": "N2",
+        "N0":  "N0",
+        "N1":  "N1",
+        "N2":  "N2",
         "N2a": "N2",
         "N2b": "N2",
         "N2c": "N2",
-        "N3": "N3",
+        "N3":  "N3",
         "N3a": "N3",
         "N3b": "N3"
     })

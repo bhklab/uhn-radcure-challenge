@@ -1,11 +1,15 @@
-from typing import Tuple, Callable, Dict, Optional
+"""Metrics used in evaluation of binary and survival tasks."""
+from typing import Tuple, Callable, Dict, Optional, Union
 
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 from joblib import Parallel, delayed
 
 from sklearn.metrics import (confusion_matrix, roc_auc_score,
                              average_precision_score, roc_curve,
-                             precision_recall_curve)
+                             precision_recall_curve, auc)
 
 from lifelines import KaplanMeierFitter
 from lifelines.utils import concordance_index
@@ -15,7 +19,7 @@ def permutation_test(y_true: np.ndarray,
                      y_pred: np.ndarray,
                      metric: Callable[[np.ndarray, np.ndarray], float],
                      n_permutations: int = 5000,
-                     n_jobs: int =  -1,
+                     n_jobs: int = -1,
                      **kwargs) -> Tuple[float, float]:
     r"""Compute significance of predictions using a randomized permutation test.
 
@@ -117,7 +121,7 @@ def evaluate_binary(y_true: np.ndarray,
                     y_pred: np.ndarray,
                     threshold: float = .5,
                     n_permutations : int = 5000,
-                    n_jobs : int = -1) -> Dict:
+                    n_jobs : int = -1) -> Dict[str, Union[float, List]]:
     """Compute performance metrics for a set of binary predictions.
 
     This function computes the confusion matrix, area under the ROC curve
@@ -169,7 +173,7 @@ def evaluate_survival(event_true: np.ndarray,
                       event_pred: np.ndarray,
                       time_pred: Optional[np.ndarray] = None,
                       n_permutations: int = 5000,
-                      n_jobs: int = -1):
+                      n_jobs: int = -1) -> Dict[str, float]:
     """Compute performance metrics for a set of survival predictions.
 
     This function computes the concordance index for event risk predicitons
@@ -236,12 +240,39 @@ def evaluate_survival(event_true: np.ndarray,
     }
 
 
-def plot_roc_curve(true, predicted, label=None, ax=None):
+def plot_roc_curve(true: Union[np.ndarray, pd.Series],
+                   predicted: Union[np.ndarray, pd.Series],
+                   label: str = None,
+                   ax: Optional[Axes] = None) -> Axes:
+    """Plot the receiver operating characteristic (ROC) curve for a set of
+    binary predictions.
+
+    Parameters
+    ----------
+    true
+        The ground truth binary labels.
+    predicted
+        The predicted positive class scores.
+    label
+        The label used in plot legend.
+    ax
+        Axes object to plot on. If None, a new set of axes is created.
+
+    Returns
+    -------
+    Axes
+        The ROC curve plot.
+    """
     if ax is None:
         fig, ax = plt.subplots()
 
     fpr, tpr, _ = roc_curve(true, predicted)
+    auc_val = auc(fpr, tpr)
     ax.plot([0, 1], [0, 1], c="grey", linestyle="--")
+    if label:
+        label += f" (AUC = {auc_val})"
+    else:
+        label = f"AUC = {auc_val}"
     ax.plot(fpr, tpr, label=label)
     ax.set_xlabel("False positive rate")
     ax.set_ylabel("True positive rate")
@@ -249,11 +280,37 @@ def plot_roc_curve(true, predicted, label=None, ax=None):
     return ax
 
 
-def plot_pr_curve(true, predicted, label=None, ax=None):
+def plot_pr_curve(true: Union[np.ndarray, pd.Series],
+                  predicted: Union[np.ndarray, pd.Series],
+                  label: str = None,
+                  ax: Optional[Axes] = None) -> Axes:
+    """Plot the precision-recall (PR) curve for a set of binary predictions.
+
+    Parameters
+    ----------
+    true
+        The ground truth binary labels.
+    predicted
+        The predicted positive class scores.
+    label
+        The label used in plot legend.
+    ax
+        Axes object to plot on. If None, a new set of axes is created.
+
+    Returns
+    -------
+    Axes
+        The PR curve plot.
+    """
     if ax is None:
         fig, ax = plt.subplots()
 
     precision, recall, _ = precision_recall_curve(true, predicted)
+    ap_val = average_precision_score(true, predicted)
+    if label:
+        label += f" (AP = {ap_val})"
+    else:
+        label = f"AP = {ap_val}"
     ax.plot(recall, precision, label=label)
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
