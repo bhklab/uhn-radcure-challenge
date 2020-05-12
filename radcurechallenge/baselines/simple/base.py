@@ -420,6 +420,11 @@ class SimpleBaseline:
         self.colnames = colnames
 
         self.data_train, self.data_test = self.prepare_data(data)
+        if len(self.data_test) == 0:
+            raise RuntimeError(("The test set is not available at this stage of"
+                                " the challenge. You will be able to run and"
+                                " evaluate the baseline models after the test"
+                                " set is released."))
 
     def prepare_data(self,
                      data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
