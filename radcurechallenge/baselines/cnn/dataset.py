@@ -1,5 +1,6 @@
 import os
 from typing import Callable, Optional, Tuple
+from warnings import warn
 
 import numpy as np
 import pandas as pd
@@ -87,12 +88,16 @@ class RadcureDataset(Dataset):
 
         clinical_data = pd.read_csv(clinical_data_path)
         self.clinical_data = clinical_data[clinical_data["split"] == self.split]
-
-        # TODO we should also re-create the cache when the patch size is changed
         self.cache_path = os.path.join(cache_dir, self.split)
-        if not os.path.exists(self.cache_path):
-            os.makedirs(self.cache_path)
-            self._prepare_data()
+
+        if not self.train and len(self.clinical_data) == 0:
+            warn(("The test set is not available at this stage of the challenge."
+                  " Testing will be disabled"), UserWarning)
+        else:
+            # TODO we should also re-create the cache when the patch size is changed
+            if not os.path.exists(self.cache_path):
+                os.makedirs(self.cache_path)
+                self._prepare_data()
 
     def _prepare_data(self):
         """Preprocess and cache the dataset."""

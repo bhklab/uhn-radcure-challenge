@@ -201,30 +201,21 @@ class SimpleCNN(pl.LightningModule):
         if self.logger is not None:
             # plot a few example images from the training, validation
             # and test datasets
-            train_imgs = []
-            for i in torch.randint(0, len(self.train_dataset), (5,)):
-                img = (self.train_dataset[i.item()][0][:, :, 25] - 3.) / 6.
-                train_imgs.append(img)
+            datasets = {
+                "training": self.train_dataset,
+                "validation": self.val_dataset
+            }
+            if len(self.test_dataset) > 0:
+                datasets["test"] = self.test_dataset
+            for key, dataset in datasets.items():
+                imgs = []
+                for i in torch.randint(0, len(dataset), (5,)):
+                    img = (dataset[i.item()][0][:, :, 25] - 3.) / 6.
+                    imgs.append(img)
 
-            val_imgs = []
-            for i in torch.randint(0, len(self.val_dataset), (5,)):
-                img = (self.val_dataset[i.item()][0][:, :, 25] - 3.) / 6.
-                val_imgs.append(img)
-
-            test_imgs = []
-            for i in torch.randint(0, len(self.test_dataset), (5,)):
-                img = (self.test_dataset[i.item()][0][:, :, 25] - 3.) / 6.
-                test_imgs.append(img)
-
-            self.logger.experiment.add_images("training",
-                                            torch.stack(train_imgs, dim=0),
-                                            dataformats="NCHW")
-            self.logger.experiment.add_images("validation",
-                                            torch.stack(val_imgs, dim=0),
-                                            dataformats="NCHW")
-            self.logger.experiment.add_images("test",
-                                            torch.stack(test_imgs, dim=0),
-                                            dataformats="NCHW")
+                    self.logger.experiment.add_images(key,
+                                                      torch.stack(imgs, dim=0),
+                                                      dataformats="NCHW")
 
 
     def train_dataloader(self):
