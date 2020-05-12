@@ -184,9 +184,7 @@ class SimpleCNN(pl.LightningModule):
         train_indices, val_indices = train_test_split(train_indices, test_size=val_size, stratify=train_targets)
         train_dataset, val_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, val_indices)
         val_dataset.dataset.transform = test_transform
-        # use only the new training set to compute the class weight 
-        train_targets = train_dataset.dataset.clinical_data["target_binary"]
-        self.pos_weight = torch.tensor(compute_class_weight("balanced", [0, 1], train_targets)[1])
+        self.pos_weight = torch.tensor(len(train_targets) / train_targets.sum())
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
