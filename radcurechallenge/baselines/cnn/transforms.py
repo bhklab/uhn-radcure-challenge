@@ -24,7 +24,7 @@ class ToTensor:
         return tensor
 
     def __repr__(self):
-        return f"self.__class__.__name__}()"
+        return f"{self.__class__.__name__}()"
 
 
 class RandomInPlaneRotation:
@@ -70,6 +70,9 @@ class RandomInPlaneRotation:
         )
         return sitk.Resample(x, x, rotation, sitk.sitkLinear, self.fill_value)
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}(max_angle={self.max_angle}, fill_value={self.fill_value})"
+
 
 class RandomFlip:
     """Randomly flip an image along a given axis."""
@@ -100,6 +103,9 @@ class RandomFlip:
         if np.random.random() > .5:
             x = sitk.Flip(x, self.flip_mask)
         return x
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(dim={self.dim})"
 
 
 class RandomNoise:
@@ -132,6 +138,9 @@ class RandomNoise:
         noise = sitk.GetImageFromArray(noise)
         noise.CopyInformation(x)
         return x + noise
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(std={self.std})"
 
 
 class Normalize:
@@ -167,3 +176,6 @@ class Normalize:
         x = (x - self.mean) / self.std
         # division sometimes silently casts the result to sitk.Float64...
         return sitk.Cast(x, sitk.sitkFloat32)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(mean={self.mean}, std={self.std})"
