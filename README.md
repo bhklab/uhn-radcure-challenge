@@ -70,7 +70,7 @@ In all basic models, logistic regression was used for binarized 2-year survival 
 - Engineered radiomics (PyRadiomics)
 
 **Convolutional neural net (CNN):**
-- Deep learning model adapted from (Hosny et al, 2018) (binary classification)
+- Deep learning model adapted from [(Hosny et al, 2018)](https://doi.org/10.1371/journal.pmed.1002711) (binary classification)
 
 The code used to train the baseline models can be found in [radcurechallenge/baselines](radcurechallenge/baselines). Feel free to use it as a starting point for your submission.
 
