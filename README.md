@@ -13,7 +13,7 @@ Pre-processing and evaluation code for the 2020 challenge.
 ```pip install -r requirements.txt```
 
 ### Submitting jobs on HPC4Health (H4H)
-H4H uses [Slurm](https://slurm.schedmd.com) as its cluster management system. Check out the [official H4H documentation](https://onedrive.live.com/view.aspx?resid=3C4A8832156EA29!1115&ithint=file%2cdocx&authkey=!AAMab1i2E2R-m8M) and the [scripts directory](radcurechallenge/scripts) for example Slurm scripts to run jobs on H4H.
+H4H uses [Slurm](https://slurm.schedmd.com) as its cluster management system. Check out the [official H4H documentation](https://onedrive.live.com/view.aspx?resid=3C4A8832156EA29!1115&ithint=file%2cdocx&authkey=!AAMab1i2E2R-m8M) and the [scripts directory](scripts) for example Slurm scripts to run jobs on H4H.
 
 #### Quick reference:
 - `salloc -t HH:MM:SS -p <partition_name> -c <number_of_CPU_cores> --mem <amount_of_memory>` starts an interactive job (with shell)
