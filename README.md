@@ -1,6 +1,26 @@
 # UHN RADCURE Prognostic Modelling Challenge 2020
 Pre-processing and evaluation code for the 2020 challenge.
 
+## Getting started
+### Using conda (recommended):
+1. [Install conda](https://docs.conda.io/en/latest/miniconda.html)
+2. Create the virtual environment:
+```CFLAGS='-std=c++11' conda env create -f environment.yml```
+3. Activate the environment:
+```conda activate radcure-challenge```
+
+### Using pip (not recommended):
+```pip install -r requirements.txt```
+
+### Submitting jobs on HPC4Health (H4H)
+H4H uses [Slurm](https://slurm.schedmd.com) as its cluster management system. Check out the [official H4H documentation](https://onedrive.live.com/view.aspx?resid=3C4A8832156EA29!1115&ithint=file%2cdocx&authkey=!AAMab1i2E2R-m8M) and the [scripts directory](radcurechallenge/scripts) for example Slurm scripts to run jobs on H4H.
+
+#### Quick reference:
+- `salloc -t HH:MM:SS -p <partition_name> -c <number_of_CPU_cores> --mem <amount_of_memory>` starts an interactive job (with shell)
+- `sbatch my_batch_script.slurm` starts a batch job (runs in the background)
+- `squeue` to see information about your running jobs
+- `sinfo` to see information about compute node availability.
+
 ## Goals
 Develop a prognostic model for patients with head and neck cancer using pre-treatment planning CT scans to predict two endpoints:
 1. Binarized 2-year survival 
@@ -37,6 +57,9 @@ The submission portal and instructions will be announced at the end of phase II.
 
 The code used for evaluation can be found in [radcurechallenge/evaluation](radcurechallenge/evaluation). The accuracy of binarized 2-year survival prediction will be evaluated using the area under the receiver operating characteristic (ROC) curve (AUROC), and average precision (AP, variant of area under the precision-recall curve). For survival prediction, the concordance index (CI) and integrated Brier score (IBS) will be used.
 Submissions will be ranked primarily by the AUROC on the binarized task. Average precision and the performance on the survival prediction task will be used to break ties.
+
+### Reproducibility
+To ensure reproducibility of results, the best performing teams will also be asked to submit their full code alongside detailed instructions on how to run it on H4H. Note that you don't need to use the specific virtual environment/package versions from this repository, as long as you provide a way to reproduce your environment.
 
 ## Benchmark models
 In all basic models, logistic regression was used for binarized 2-year survival modelling, while Cox proportional hazards model was used for OS modelling.
