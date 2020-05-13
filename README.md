@@ -1,5 +1,4 @@
 # UHN RADCURE Prognostic Modelling Challenge 2020
-Pre-processing and evaluation code for the 2020 challenge.
 
 ## Getting started
 ### Using conda (recommended):
