@@ -1,5 +1,5 @@
-### Example script for submitting GPU jobs on H4H
 #!/bin/bash
+### Example script for submitting GPU jobs on H4H
 #SBATCH --job-name=simple_cnn
 #SBATCH --mem=60G
 #SBATCH -t 1-00:00:00

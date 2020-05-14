@@ -1,5 +1,24 @@
 # UHN RADCURE Prognostic Modelling Challenge 2020
-Pre-processing and evaluation code for the 2020 challenge.
+
+## Getting started
+### Using conda (recommended):
+1. [Install conda](https://docs.conda.io/en/latest/miniconda.html)
+2. Create the virtual environment:
+```CFLAGS='-std=c++11' conda env create -f environment.yml```
+3. Activate the environment:
+```conda activate radcure-challenge```
+
+### Using pip (not recommended):
+```pip install -r requirements.txt```
+
+### Submitting jobs on HPC4Health (H4H)
+H4H uses [Slurm](https://slurm.schedmd.com) as its cluster management system. Check out the [official H4H documentation](https://onedrive.live.com/view.aspx?resid=3C4A8832156EA29!1115&ithint=file%2cdocx&authkey=!AAMab1i2E2R-m8M) and the [scripts directory](scripts) for example Slurm scripts to run jobs on H4H.
+
+#### Quick reference:
+- `salloc -t HH:MM:SS -p <partition_name> -c <number_of_CPU_cores> --mem <amount_of_memory>` starts an interactive job (with shell)
+- `sbatch my_batch_script.slurm` starts a batch job (runs in the background)
+- `squeue` to see information about your running jobs
+- `sinfo` to see information about compute node availability.
 
 ## Goals
 Develop a prognostic model for patients with head and neck cancer using pre-treatment planning CT scans to predict two endpoints:
@@ -38,6 +57,9 @@ The submission portal and instructions will be announced at the end of phase II.
 The code used for evaluation can be found in [radcurechallenge/evaluation](radcurechallenge/evaluation). The accuracy of binarized 2-year survival prediction will be evaluated using the area under the receiver operating characteristic (ROC) curve (AUROC), and average precision (AP, variant of area under the precision-recall curve). For survival prediction, the concordance index (CI) and integrated Brier score (IBS) will be used.
 Submissions will be ranked primarily by the AUROC on the binarized task. Average precision and the performance on the survival prediction task will be used to break ties.
 
+### Reproducibility
+To ensure reproducibility of results, the best performing teams will also be asked to submit their full code alongside detailed instructions on how to run it on H4H. Note that you don't need to use the specific virtual environment/package versions from this repository, as long as you provide a way to reproduce your environment.
+
 ## Benchmark models
 In all basic models, logistic regression was used for binarized 2-year survival modelling, while Cox proportional hazards model was used for OS modelling.
 
@@ -47,7 +69,7 @@ In all basic models, logistic regression was used for binarized 2-year survival 
 - Engineered radiomics (PyRadiomics)
 
 **Convolutional neural net (CNN):**
-- Deep learning model adapted from (Hosny et al, 2018) (binary classification)
+- Deep learning model adapted from [(Hosny et al, 2018)](https://doi.org/10.1371/journal.pmed.1002711) (binary classification)
 
 The code used to train the baseline models can be found in [radcurechallenge/baselines](radcurechallenge/baselines). Feel free to use it as a starting point for your submission.
 
@@ -58,6 +80,9 @@ The code used to train the baseline models can be found in [radcurechallenge/bas
 | radiomics | 0.71 (p < .001)  | 0.33 (p < .001) | 0.73 (p < .001) | 0.049 (p < .001) |
 | volume    | 0.71 (p < .001)  | 0.32 (p < .001) | 0.71 (p < .001) | 0.046 (p < .001) |
 | clinical  | 0.74 (p < .001)  | 0.37 (p < .001) | 0.70 (p < .001) | 0.049 (p < .001) |
+| CNN       | 0.70 (p < .001)  | 0.28 (p < .001) | N/A             | N/A              |
+
+![ROC and PR curves](/results/baseline_roc_pr_curves.png)
 
 ## Further information
 Check out the [full challenge description](https://docs.google.com/document/d/1_mVnvOpHnM3UbAqiK08O57IejQsrhfDt8IQqDG6uNwU/edit?usp=sharing) for additional information about the data, timelines and publication of results. If you're a participant, you should also check our Slack workspace (invitations will be sent soon) for latest updates and discussion.
