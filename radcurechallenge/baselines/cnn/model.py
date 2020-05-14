@@ -1,5 +1,6 @@
 from math import floor, pi
 from argparse import ArgumentParser, Namespace
+from copy import copy
 
 import torch
 import torch.nn as nn
@@ -13,7 +14,6 @@ from torchvision.transforms import Compose
 import pandas as pd
 from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.model_selection import train_test_split
-from sklearn.utils.class_weight import compute_class_weight
 
 from .dataset import RadcureDataset
 from .transforms import *
@@ -162,13 +162,13 @@ class SimpleCNN(pl.LightningModule):
             ToTensor(),
             #lambda x: torch.randn(1, 50, 50, 50)
         ])
-        train_dataset = RadcureDataset(self.hparams.root_directory,
-                                       self.hparams.clinical_data_path,
-                                       self.hparams.patch_size,
-                                       train=True,
-                                       transform=train_transform,
-                                       cache_dir=self.hparams.cache_dir,
-                                       num_workers=self.hparams.num_workers)
+        full_dataset = RadcureDataset(self.hparams.root_directory,
+                                      self.hparams.clinical_data_path,
+                                      self.hparams.patch_size,
+                                      train=True,
+                                      transform=train_transform,
+                                      cache_dir=self.hparams.cache_dir,
+                                      num_workers=self.hparams.num_workers)
         test_dataset = RadcureDataset(self.hparams.root_directory,
                                       self.hparams.clinical_data_path,
                                       self.hparams.patch_size,
@@ -178,13 +178,14 @@ class SimpleCNN(pl.LightningModule):
                                       num_workers=self.hparams.num_workers)
 
         # make sure the validation set is balanced
-        val_size = floor(.1 / .7 * len(train_dataset)) # use 10% of all data for validation
-        train_indices = range(len(train_dataset))
-        train_targets = train_dataset.clinical_data["target_binary"]
-        train_indices, val_indices = train_test_split(train_indices, test_size=val_size, stratify=train_targets)
-        train_dataset, val_dataset = Subset(train_dataset, train_indices), Subset(train_dataset, val_indices)
+        val_size = floor(.1 / .7 * len(full_dataset)) # use 10% of all data for validation
+        full_indices = range(len(full_dataset))
+        full_targets = full_dataset.clinical_data["target_binary"]
+        train_indices, val_indices = train_test_split(full_indices, test_size=val_size, stratify=full_targets)
+        train_dataset, val_dataset = Subset(full_dataset, train_indices), Subset(full_dataset, val_indices)
+        val_dataset.dataset = copy(full_dataset)
         val_dataset.dataset.transform = test_transform
-        self.pos_weight = torch.tensor(len(train_targets) / train_targets.sum())
+        self.pos_weight = torch.tensor(len(full_targets) / full_targets.sum())
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -210,7 +211,7 @@ class SimpleCNN(pl.LightningModule):
             for key, dataset in datasets.items():
                 imgs = []
                 for i in torch.randint(0, len(dataset), (5,)):
-                    img = (dataset[i.item()][0][:, :, 25] - 3.) / 6.
+                    img = (dataset[i.item()][0][:, 25] - 3.) / 6.
                     imgs.append(img)
 
                     self.logger.experiment.add_images(key,
