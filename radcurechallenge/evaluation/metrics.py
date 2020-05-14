@@ -1,5 +1,5 @@
 """Metrics used in evaluation of binary and survival tasks."""
-from typing import Tuple, Callable, Dict, Optional, Union
+from typing import Tuple, Callable, Dict, Optional, Union, List
 
 import numpy as np
 import pandas as pd
@@ -270,9 +270,9 @@ def plot_roc_curve(true: Union[np.ndarray, pd.Series],
     auc_val = auc(fpr, tpr)
     ax.plot([0, 1], [0, 1], c="grey", linestyle="--")
     if label:
-        label += f" (AUC = {auc_val})"
+        label += f" (AUC = {auc_val:.2f})"
     else:
-        label = f"AUC = {auc_val}"
+        label = f"AUC = {auc_val:.2f}"
     ax.plot(fpr, tpr, label=label)
     ax.set_xlabel("False positive rate")
     ax.set_ylabel("True positive rate")
@@ -308,9 +308,9 @@ def plot_pr_curve(true: Union[np.ndarray, pd.Series],
     precision, recall, _ = precision_recall_curve(true, predicted)
     ap_val = average_precision_score(true, predicted)
     if label:
-        label += f" (AP = {ap_val})"
+        label += f" (AP = {ap_val:.2f})"
     else:
-        label = f"AP = {ap_val}"
+        label = f"AP = {ap_val:.2f}"
     ax.plot(recall, precision, label=label)
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
