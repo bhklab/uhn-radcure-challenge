@@ -39,6 +39,7 @@ def main(args):
                                    ax=ax[0])
             ax[1] = plot_pr_curve(targets["target_binary"],
                                   predictions["binary"],
+                                   label=f"{group}-{name}",
                                   ax=ax[1])
         if "survival_time_0" in predictions.columns:
             time_pred = np.array(predictions.filter(like="survival_time").values)
@@ -52,7 +53,8 @@ def main(args):
 
         results.append(cur_res)
 
-        fig.legend()
+        ax[0].legend()
+        ax[1].legend()
 
     pd.DataFrame(results).to_csv(os.path.join(args.output_dir, "metrics.csv"), index=False)
     fig.savefig(os.path.join(args.output_dir, "roc_pr_curves.png"), dpi=300)
