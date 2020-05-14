@@ -80,6 +80,9 @@ The code used to train the baseline models can be found in [radcurechallenge/bas
 | radiomics | 0.71 (p < .001)  | 0.33 (p < .001) | 0.73 (p < .001) | 0.049 (p < .001) |
 | volume    | 0.71 (p < .001)  | 0.32 (p < .001) | 0.71 (p < .001) | 0.046 (p < .001) |
 | clinical  | 0.74 (p < .001)  | 0.37 (p < .001) | 0.70 (p < .001) | 0.049 (p < .001) |
+| CNN       | 0.70 (p < .001)  | 0.28 (p < .001) | N/A             | N/A              |
+
+![ROC and PR curves](/results/baseline_roc_pr_curves.png)
 
 ## Further information
 Check out the [full challenge description](https://docs.google.com/document/d/1_mVnvOpHnM3UbAqiK08O57IejQsrhfDt8IQqDG6uNwU/edit?usp=sharing) for additional information about the data, timelines and publication of results. If you're a participant, you should also check our Slack workspace (invitations will be sent soon) for latest updates and discussion.
