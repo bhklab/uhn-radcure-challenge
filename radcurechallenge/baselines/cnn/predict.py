@@ -13,13 +13,9 @@ torch.backends.cudnn.benchmark = False
 
 
 def main(args):
-    # if hparams.gpus == 0:
-    #     raise ValueError(("Training on CPU is not supported, please run again "
-    #                       "on a system with GPU and '--gpus' > 0."))
-
     model = SimpleCNN.load_from_checkpoint(args.checkpoint_path)
-    print(model)
-    print(model.hparams)
+    model.hparams.logger = None
+    model.hparams.checkpoint_callback = None
     model.prepare_data()
     trainer = Trainer.from_argparse_args(model.hparams)
     trainer.test(model)
