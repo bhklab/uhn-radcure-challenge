@@ -42,6 +42,8 @@ In phase II of the challenge, we will also provide de-identified clinical variab
 | Positive class frequency (training set)    | 323 (18%) |
 | Median follow-up time/years (training set) | 5.36      |
 
+#### Case distribution by disease site (training set)
+![Case distribution by disease site (training set)](/results/cases_by_site.png)
 
 ## Evaluation and submission
 At the end of phase II, we will release the test set without ground truth labels. Participants will be asked to run their models on the test set and submit the predictions. We will use the predictions and the ground truth labels to compute the test set metrics for each submission. The top 2 participants will be asked to submit their code alongside complete requirements and instructions on how to run the code on H4H (this is to ensure full reproducibility for publication).
