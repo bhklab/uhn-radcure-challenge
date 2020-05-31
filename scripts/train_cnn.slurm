@@ -7,7 +7,7 @@
 #SBATCH -N 1
 # add the name of the partition (e.g. -p gpu) and your group's GPU account
 # (e.g. -A mygroup_gpu) below
-#SBATCH -p gpu 
+#SBATCH -p gpu
 #SBATCH -A mygroup_gpu
 #SBATCH --gres=gpu:1
 # replace the path below with the directory with your code
@@ -22,7 +22,7 @@ RAW_DATA_PATH=/cluster/projects/mygroup/RADCURE-challenge/data
 
 python -m radcurechallenge.baselines.cnn.train\
           $RAW_DATA_PATH\
-          $RAW_DATA_PATH/clinical.csv\
+          $RAW_DATA_PATH/training/clinical.csv\
           --cache_dir ./data/data_cache\
           --num_workers 16\
           --batch_size 16\
