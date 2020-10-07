@@ -53,19 +53,24 @@ def main(args):
                                   predictions["binary"],
                                   label=f"{group}-{team}-{name}",
                                   ax=ax[1])
-        if "survival_time_0" in predictions.columns:
-            time_pred = np.array(predictions.filter(like="survival_time").values)
-            metrics_survival = evaluate_survival(targets["death"],
-                                                 targets["survival_time"],
-                                                 predictions["survival_event"],
-                                                 time_pred,
-                                                 n_permutations=args.n_permutations,
-                                                 n_jobs=args.n_jobs)
-            cur_res.update(metrics_survival)
             volume_corr, volume_corr_pval = pearsonr(predictions["binary"], volume)
             cur_res["volume_corr"] = volume_corr
             cur_res["volume_corr_pval"] = volume_corr_pval
 
+        if "survival_event" not in predictions:
+            predictions["survival_event"] = predictions["binary"]
+
+        if "survival_time_0" in predictions:
+            time_pred = np.array(predictions.filter(like="survival_time").values)
+        else:
+            time_pred = None
+        metrics_survival = evaluate_survival(targets["death"],
+                                             targets["survival_time"],
+                                             predictions["survival_event"],
+                                             time_pred,
+                                             n_permutations=args.n_permutations,
+                                             n_jobs=args.n_jobs)
+        cur_res.update(metrics_survival)
         results.append(cur_res)
 
     ax[0].legend()
