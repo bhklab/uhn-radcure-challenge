@@ -10,6 +10,7 @@ from joblib import Parallel, delayed
 from sklearn.metrics import (confusion_matrix, roc_auc_score,
                              average_precision_score, roc_curve,
                              precision_recall_curve, auc)
+from sklearn.utils import resample
 
 from lifelines import KaplanMeierFitter
 from lifelines.utils import concordance_index
@@ -57,6 +58,21 @@ def permutation_test(y_true: np.ndarray,
     perm_estimates = np.array(perm_estimates)
     pval = ((perm_estimates >= estimate).sum() + 1) / (n_permutations + 1)
     return estimate, pval
+
+
+def bootstrap_ci(y_true: np.ndarray,
+                 y_pred: np.ndarray,
+                 metric: Callable[[np.ndarray, np.ndarray], float],
+                 n_samples: int = 5000,
+                 n_jobs: int = -1,
+                 **kwargs) -> Tuple[float, float]:
+    def inner():
+        y_true_res, y_pred_res = resample(y_true, y_pred, stratify=y_true)
+        return metric(y_true_res, y_pred_res, **kwargs)
+    bootstrap_estimates = Parallel(n_jobs=n_jobs)(delayed(inner)() for _ in range(n_samples))
+    bootstrap_estimates = np.array(bootstrap_estimates)
+    ci_low, ci_high = np.percentile(bootstrap_estimates, [2.5, 97.5])
+    return ci_low, ci_high
 
 
 def integrated_brier_score(time_true: np.ndarray,
@@ -120,8 +136,8 @@ def integrated_brier_score(time_true: np.ndarray,
 def evaluate_binary(y_true: np.ndarray,
                     y_pred: np.ndarray,
                     threshold: float = .5,
-                    n_permutations : int = 5000,
-                    n_jobs : int = -1) -> Dict[str, Union[float, List]]:
+                    n_permutations: int = 5000,
+                    n_jobs: int = -1) -> Dict[str, Union[float, List]]:
     """Compute performance metrics for a set of binary predictions.
 
     This function computes the confusion matrix, area under the ROC curve
@@ -153,18 +169,25 @@ def evaluate_binary(y_true: np.ndarray,
     if y_pred.ndim == 2:
         y_pred = y_pred[:, 1]
 
-    conf_matrix = confusion_matrix(y_true, y_pred > threshold)
     auc, auc_pval = permutation_test(y_true, y_pred,
                                      roc_auc_score, n_permutations, n_jobs)
     avg_prec, avg_prec_pval = permutation_test(y_true, y_pred,
                                                average_precision_score,
                                                n_permutations, n_jobs)
+    auc_ci_low, auc_ci_high = bootstrap_ci(y_true, y_pred,
+                                           roc_auc_score, n_permutations, n_jobs)
+    avg_prec_ci_low, avg_prec_ci_high = bootstrap_ci(y_true, y_pred,
+                                                     average_precision_score,
+                                                     n_permutations, n_jobs)
     return {
-        "confusion_matrix": conf_matrix,
         "roc_auc": auc,
         "roc_auc_pval": auc_pval,
+        "roc_auc_ci_low": auc_ci_low,
+        "roc_auc_ci_high": auc_ci_high,
         "average_precision": avg_prec,
-        "average_precision_pval": avg_prec_pval
+        "average_precision_pval": avg_prec_pval,
+        "average_precision_ci_low": avg_prec_ci_low,
+        "average_precision_ci_high": avg_prec_ci_high,
     }
 
 
@@ -218,10 +241,20 @@ def evaluate_survival(event_true: np.ndarray,
     event_observed = event_true.copy()
     event_observed[time_true > 2] = 0
     time_observed = np.clip(time_true, 0, 2)
-    ci, ci_pval = permutation_test(time_observed, -event_pred,
-                                   concordance_index,
-                                   n_permutations, n_jobs,
-                                   event_observed=event_observed)
+    concordance, concordance_pval = permutation_test(time_observed, -event_pred,
+                                                     concordance_index,
+                                                     n_permutations, n_jobs,
+                                                     event_observed=event_observed)
+    concordance_ci_low, concordance_ci_high = bootstrap_ci(time_observed, -event_pred,
+                                                           concordance_index,
+                                                           n_permutations, n_jobs,
+                                                           event_observed=event_observed)
+    metrics = {
+        "concordance_index": concordance,
+        "concordance_index_pval": concordance_pval,
+        "concordance_index_ci_low": concordance_ci_low,
+        "concordance_index_ci_high": concordance_ci_high,
+    }
     if time_pred is not None:
         time_bins = np.linspace(1, 2, 23)
         if time_pred.shape[1] != len(time_bins):
@@ -230,14 +263,23 @@ def evaluate_survival(event_true: np.ndarray,
         brier, brier_pval = permutation_test(time_true, time_pred,
                                              integrated_brier_score,
                                              event_observed=event_true,
-                                             time_bins=time_bins)
+                                             time_bins=time_bins,
+                                             n_permutations=n_permutations,
+                                             n_jobs=n_jobs)
+        brier_ci_low, brier_ci_high = bootstrap_ci(time_true, time_pred,
+                                                   integrated_brier_score,
+                                                   event_observed=event_true,
+                                                   time_bins=time_bins,
+                                                   n_samples=n_permutations,
+                                                   n_jobs=n_jobs)
+        metrics.update({
+            "integrated_brier_score": brier,
+            "integrated_brier_score_pval": brier_pval,
+            "integrated_brier_score_ci_low": brier_ci_low,
+            "integrated_brier_score_ci_high": brier_ci_high,
+        })
 
-    return {
-        "concordance_index": ci,
-        "concordance_index_pval": ci_pval,
-        "integrated_brier_score": brier,
-        "integrated_brier_score_pval": brier_pval
-    }
+    return metrics
 
 
 def plot_roc_curve(true: Union[np.ndarray, pd.Series],
