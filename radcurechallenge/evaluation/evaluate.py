@@ -17,17 +17,27 @@ def main(args):
     targets = data.loc[data["split"] == "test", ["target_binary", "death", "survival_time"]]
     targets = targets.sort_index()
 
-    files = filter(lambda x: x.name.endswith(".csv"), os.scandir(args.predictions_dir))
-    results = []
-    fig, ax = plt.subplots(1, 2, figsize=(13, 6))
+    files = filter(lambda x: x.name.endswith(".csv") and not x.name.startswith("excluded"), os.scandir(args.predictions_dir))
+    all_predictions = []
     for f in files:
-        group, name = os.path.splitext(f.name)[0].split("_")
+        group, team, name = os.path.splitext(f.name)[0].split("_")
         predictions = pd.read_csv(f.path, index_col="Study ID").sort_index()
 
         assert (targets.index == predictions.index).all()
 
-        cur_res = {"group": group, "name": name}
-        if "binary" in predictions.columns:
+        all_predictions.append({"group": group, "team": team, "name": name, "predictions": predictions})
+
+    challenge_predictions = pd.concat([p["predictions"].reset_index() for p in all_predictions if p["group"] == "challenge"])
+    ensemble_predictions = challenge_predictions.groupby("Study ID").mean()
+    all_predictions.append({"group": "challenge", "team": "grand ensemble", "name": "combined", "predictions": ensemble_predictions})
+
+    results = []
+    fig, ax = plt.subplots(1, 2, figsize=(13, 6))
+    for p in all_predictions:
+        group, team, name, predictions = p["group"], p["team"], p["name"], p["predictions"]
+
+        cur_res = {"group": group, "team": team, "name": name}
+        if "binary" in predictions:
             metrics_binary = evaluate_binary(targets["target_binary"],
                                              predictions["binary"],
                                              n_permutations=args.n_permutations,
@@ -35,11 +45,11 @@ def main(args):
             cur_res.update(metrics_binary)
             ax[0] = plot_roc_curve(targets["target_binary"],
                                    predictions["binary"],
-                                   label=f"{group}-{name}",
+                                   label=f"{group}-{team}-{name}",
                                    ax=ax[0])
             ax[1] = plot_pr_curve(targets["target_binary"],
                                   predictions["binary"],
-                                   label=f"{group}-{name}",
+                                  label=f"{group}-{team}-{name}",
                                   ax=ax[1])
         if "survival_time_0" in predictions.columns:
             time_pred = np.array(predictions.filter(like="survival_time").values)
@@ -53,8 +63,8 @@ def main(args):
 
         results.append(cur_res)
 
-        ax[0].legend()
-        ax[1].legend()
+    ax[0].legend()
+    ax[1].legend()
 
     pd.DataFrame(results).to_csv(os.path.join(args.output_dir, "metrics.csv"), index=False)
     fig.savefig(os.path.join(args.output_dir, "roc_pr_curves.png"), dpi=300)
