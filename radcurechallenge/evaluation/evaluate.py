@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.stats import pearsonr
 
 from .metrics import (evaluate_binary, evaluate_survival,
                       plot_roc_curve, plot_pr_curve)
@@ -16,6 +17,7 @@ def main(args):
     data = pd.read_csv(args.true_data_path, index_col="Study ID")
     targets = data.loc[data["split"] == "test", ["target_binary", "death", "survival_time"]]
     targets = targets.sort_index()
+    volume = data.loc[data["split"] == "test", "volume"].sort_index()
 
     files = filter(lambda x: x.name.endswith(".csv") and not x.name.startswith("excluded"), os.scandir(args.predictions_dir))
     all_predictions = []
@@ -60,6 +62,9 @@ def main(args):
                                                  n_permutations=args.n_permutations,
                                                  n_jobs=args.n_jobs)
             cur_res.update(metrics_survival)
+            volume_corr, volume_corr_pval = pearsonr(predictions["binary"], volume)
+            cur_res["volume_corr"] = volume_corr
+            cur_res["volume_corr_pval"] = volume_corr_pval
 
         results.append(cur_res)
 
