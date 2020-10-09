@@ -32,6 +32,10 @@ def main(args):
     challenge_predictions = pd.concat([p["predictions"].reset_index() for p in all_predictions if p["group"] == "challenge"])
     ensemble_predictions = challenge_predictions.groupby("Study ID").mean()
     all_predictions.append({"group": "challenge", "team": "grand ensemble", "name": "combined", "predictions": ensemble_predictions})
+    for name, team in [(p["name"], p["team"]) for p in all_predictions if p["group"] == "challenge"]:
+        challenge_predictions = pd.concat([p["predictions"].reset_index() for p in all_predictions if p["team"] != team and p["name"] != name])
+        ensemble_predictions = challenge_predictions.groupby("Study ID").mean()
+        all_predictions.append({"group": "challenge", "team": f"grand ensemble \ {team}-{name}", "name": "combined", "predictions": ensemble_predictions})
 
     results = []
     fig, ax = plt.subplots(1, 2, figsize=(13, 6))
