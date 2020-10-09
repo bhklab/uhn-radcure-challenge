@@ -65,9 +65,10 @@ def bootstrap_ci(y_true: np.ndarray,
                  metric: Callable[[np.ndarray, np.ndarray], float],
                  n_samples: int = 5000,
                  n_jobs: int = -1,
+                 stratify: Optional[np.ndarray] = None,
                  **kwargs) -> Tuple[float, float]:
     def inner():
-        y_true_res, y_pred_res = resample(y_true, y_pred, stratify=y_true)
+        y_true_res, y_pred_res = resample(y_true, y_pred, stratify=stratify)
         return metric(y_true_res, y_pred_res, **kwargs)
     bootstrap_estimates = Parallel(n_jobs=n_jobs)(delayed(inner)() for _ in range(n_samples))
     bootstrap_estimates = np.array(bootstrap_estimates)
@@ -175,10 +176,15 @@ def evaluate_binary(y_true: np.ndarray,
                                                average_precision_score,
                                                n_permutations, n_jobs)
     auc_ci_low, auc_ci_high = bootstrap_ci(y_true, y_pred,
-                                           roc_auc_score, n_permutations, n_jobs)
+                                           roc_auc_score,
+                                           n_samples=n_permutations,
+                                           n_jobs=n_jobs,
+                                           stratify=y_true)
     avg_prec_ci_low, avg_prec_ci_high = bootstrap_ci(y_true, y_pred,
                                                      average_precision_score,
-                                                     n_permutations, n_jobs)
+                                                     n_samples=n_permutations,
+                                                     n_jobs=n_jobs,
+                                                     stratify=y_true)
     return {
         "roc_auc": auc,
         "roc_auc_pval": auc_pval,
@@ -247,7 +253,9 @@ def evaluate_survival(event_true: np.ndarray,
                                                      event_observed=event_observed)
     concordance_ci_low, concordance_ci_high = bootstrap_ci(time_observed, -event_pred,
                                                            concordance_index,
-                                                           n_permutations, n_jobs,
+                                                           n_samples=n_permutations,
+                                                           n_jobs=n_jobs,
+                                                           stratify=event_observed,
                                                            event_observed=event_observed)
     metrics = {
         "concordance_index": concordance,
@@ -268,10 +276,11 @@ def evaluate_survival(event_true: np.ndarray,
                                              n_jobs=n_jobs)
         brier_ci_low, brier_ci_high = bootstrap_ci(time_true, time_pred,
                                                    integrated_brier_score,
-                                                   event_observed=event_true,
-                                                   time_bins=time_bins,
                                                    n_samples=n_permutations,
-                                                   n_jobs=n_jobs)
+                                                   n_jobs=n_jobs,
+                                                   stratify=event_observed,
+                                                   event_observed=event_true,
+                                                   time_bins=time_bins)
         metrics.update({
             "integrated_brier_score": brier,
             "integrated_brier_score_pval": brier_pval,
