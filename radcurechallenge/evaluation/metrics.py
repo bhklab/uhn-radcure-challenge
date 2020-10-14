@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from joblib import Parallel, delayed
 
-from sklearn.metrics import (confusion_matrix, roc_auc_score,
+from sklearn.metrics import (roc_auc_score,
                              average_precision_score, roc_curve,
                              precision_recall_curve, auc)
 from sklearn.utils import resample
@@ -21,6 +21,7 @@ def permutation_test(y_true: np.ndarray,
                      metric: Callable[[np.ndarray, np.ndarray], float],
                      n_permutations: int = 5000,
                      n_jobs: int = -1,
+                     event_observed: Optional[np.ndarray] = None,
                      **kwargs) -> Tuple[float, float]:
     r"""Compute significance of predictions using a randomized permutation test.
 
@@ -43,6 +44,8 @@ def permutation_test(y_true: np.ndarray,
         accurate estimates but take longer to run.
     n_jobs, optional
         Number of parallel processes to use.
+    event_observed, optional
+        Event indicator for survival metrics.
     **kwargs
         Additional keyword arguments passed to metric.
 
@@ -51,9 +54,24 @@ def permutation_test(y_true: np.ndarray,
     tuple of 2 floats
         The value of the performance metric and the estimated p value.
     """
-    def inner():
-        return metric(np.random.permutation(y_true), np.random.permutation(y_pred), **kwargs)
-    estimate = metric(y_true, y_pred, **kwargs)
+    def inner_survival():
+        true_perm = np.random.permutation(np.arange(len(y_true)))
+        return metric(y_true[true_perm],
+                      np.random.permutation(y_pred),
+                      event_observed=event_observed[true_perm],
+                      **kwargs)
+
+    def inner_binary():
+        return metric(np.random.permutation(y_true),
+                      np.random.permutation(y_pred),
+                      **kwargs)
+
+    if event_observed is not None:
+        estimate = metric(y_true, y_pred, event_observed=event_observed, **kwargs)
+        inner = inner_survival
+    else:
+        estimate = metric(y_true, y_pred, **kwargs)
+        inner = inner_binary
     perm_estimates = Parallel(n_jobs=n_jobs)(delayed(inner)() for _ in range(n_permutations))
     perm_estimates = np.array(perm_estimates)
     pval = ((perm_estimates >= estimate).sum() + 1) / (n_permutations + 1)
@@ -66,10 +84,21 @@ def bootstrap_ci(y_true: np.ndarray,
                  n_samples: int = 5000,
                  n_jobs: int = -1,
                  stratify: Optional[np.ndarray] = None,
+                 event_observed: Optional[np.ndarray] = None,
                  **kwargs) -> Tuple[float, float]:
-    def inner():
+    def inner_survival():
+        y_true_res, y_pred_res, event_observed_res = resample(y_true, y_pred, event_observed, stratify=stratify)
+        return metric(y_true_res, y_pred_res, event_observed=event_observed_res, **kwargs)
+
+    def inner_binary():
         y_true_res, y_pred_res = resample(y_true, y_pred, stratify=stratify)
         return metric(y_true_res, y_pred_res, **kwargs)
+
+    if event_observed is not None:
+        inner = inner_survival
+    else:
+        inner = inner_binary
+
     bootstrap_estimates = Parallel(n_jobs=n_jobs)(delayed(inner)() for _ in range(n_samples))
     bootstrap_estimates = np.array(bootstrap_estimates)
     ci_low, ci_high = np.percentile(bootstrap_estimates, [2.5, 97.5])
