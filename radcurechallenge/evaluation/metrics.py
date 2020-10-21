@@ -8,12 +8,19 @@ from matplotlib.axes import Axes
 from joblib import Parallel, delayed
 
 from sklearn.metrics import (roc_auc_score,
-                             average_precision_score, roc_curve,
-                             precision_recall_curve, auc)
+                             average_precision_score, roc_curve, auc,
+                             precision_recall_curve, recall_score)
 from sklearn.utils import resample
 
 from lifelines import KaplanMeierFitter
 from lifelines.utils import concordance_index
+
+
+sensitivity = recall_score
+
+
+def specificity(y_true, y_pred):
+    return recall_score(y_true, y_pred, pos_label=0)
 
 
 def permutation_test(y_true: np.ndarray,
@@ -214,6 +221,22 @@ def evaluate_binary(y_true: np.ndarray,
                                                      n_samples=n_permutations,
                                                      n_jobs=n_jobs,
                                                      stratify=y_true)
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
+    best_idx = np.argmax(tpr - fpr)
+    best_sens, best_spec = tpr[best_idx], 1 - fpr[best_idx]
+    best_threshold = thresholds[best_idx]
+    sens_ci_low, sens_ci_high = bootstrap_ci(y_true, y_pred > best_threshold,
+                                             sensitivity,
+                                             n_samples=n_permutations,
+                                             n_jobs=n_jobs,
+                                             stratify=y_true)
+    spec_ci_low, spec_ci_high = bootstrap_ci(y_true, y_pred > best_threshold,
+                                             specificity,
+                                             n_samples=n_permutations,
+                                             n_jobs=n_jobs,
+                                             stratify=y_true)
+
     return {
         "roc_auc": auc,
         "roc_auc_pval": auc_pval,
@@ -223,6 +246,12 @@ def evaluate_binary(y_true: np.ndarray,
         "average_precision_pval": avg_prec_pval,
         "average_precision_ci_low": avg_prec_ci_low,
         "average_precision_ci_high": avg_prec_ci_high,
+        "best_sensitivity": best_sens,
+        "best_sensitivity_ci_low": sens_ci_low,
+        "best_sensitivity_ci_high": sens_ci_high,
+        "best_specificity": best_spec,
+        "best_specificity_ci_low": spec_ci_low,
+        "best_specificity_ci_high": spec_ci_high,
     }
 
 
