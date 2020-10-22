@@ -1,5 +1,6 @@
 import os
 from argparse import ArgumentParser
+from hashlib import md5
 
 import numpy as np
 import pandas as pd
@@ -29,20 +30,22 @@ def main(args):
 
         all_predictions.append({"group": group, "team": team, "name": name, "predictions": predictions})
 
-    challenge_predictions = pd.concat([p["predictions"].reset_index() for p in all_predictions if p["group"] == "challenge"])
-    ensemble_predictions = challenge_predictions.groupby("Study ID").mean()
-    all_predictions.append({"group": "challenge", "team": "grand ensemble", "name": "combined", "predictions": ensemble_predictions})
     for name, team in [(p["name"], p["team"]) for p in all_predictions if p["group"] == "challenge"]:
         challenge_predictions = pd.concat([p["predictions"].reset_index() for p in all_predictions if p["team"] != team and p["name"] != name])
         ensemble_predictions = challenge_predictions.groupby("Study ID").mean()
-        all_predictions.append({"group": "challenge", "team": f"grand ensemble \ {team}-{name}", "name": "combined", "predictions": ensemble_predictions})
+        all_predictions.append({"group": "challenge", "team": f"ensemble \ {team}-{name}", "name": "combined", "predictions": ensemble_predictions})
+    challenge_predictions = pd.concat([p["predictions"].reset_index() for p in all_predictions if p["group"] == "challenge"])
+    ensemble_predictions = challenge_predictions.groupby("Study ID").mean()
+    all_predictions.append({"group": "challenge", "team": "ensemble", "name": "combined", "predictions": ensemble_predictions})
 
     results = []
     fig, ax = plt.subplots(1, 2, figsize=(13, 6))
     for p in all_predictions:
         group, team, name, predictions = p["group"], p["team"], p["name"], p["predictions"]
 
-        cur_res = {"group": group, "team": team, "name": name}
+        submission_id = md5(("team" + "name").encode()).hexdigest()[:7]
+
+        cur_res = {"group": group, "team": team, "name": name, "submission_id": submission_id}
         if "binary" in predictions:
             metrics_binary = evaluate_binary(targets["target_binary"],
                                              predictions["binary"],
