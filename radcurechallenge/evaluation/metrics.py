@@ -222,16 +222,14 @@ def evaluate_binary(y_true: np.ndarray,
                                                      n_jobs=n_jobs,
                                                      stratify=y_true)
 
-    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
-    best_idx = np.argmax(tpr - fpr)
-    best_sens, best_spec = tpr[best_idx], 1 - fpr[best_idx]
-    best_threshold = thresholds[best_idx]
-    sens_ci_low, sens_ci_high = bootstrap_ci(y_true, y_pred > best_threshold,
+    best_sens = sensitivity(y_true, y_pred > .5)
+    best_spec = specificity(y_true, y_pred > .5)
+    sens_ci_low, sens_ci_high = bootstrap_ci(y_true, y_pred > .5,
                                              sensitivity,
                                              n_samples=n_permutations,
                                              n_jobs=n_jobs,
                                              stratify=y_true)
-    spec_ci_low, spec_ci_high = bootstrap_ci(y_true, y_pred > best_threshold,
+    spec_ci_low, spec_ci_high = bootstrap_ci(y_true, y_pred > .5,
                                              specificity,
                                              n_samples=n_permutations,
                                              n_jobs=n_jobs,
