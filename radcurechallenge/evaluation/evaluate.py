@@ -8,6 +8,28 @@ from scipy.stats import spearmanr
 from .metrics import evaluate_binary, evaluate_survival
 
 
+def load_predictions(predictions_dir: str):
+    files = filter(lambda x: x.name.endswith(".csv") and not x.name.startswith("excluded"),
+                   os.scandir(predictions_dir))
+    all_predictions = []
+    for f in files:
+        group, kind, submission_id = os.path.splitext(f.name)[0].split("_")
+        if submission_id == 'ensemble':
+            continue
+        predictions = pd.read_csv(f.path, index_col="Study ID").sort_index()
+
+        if "survival_event" not in predictions:
+            predictions["survival_event"] = predictions["binary"]
+
+        all_predictions.append({
+            "group": group,
+            "kind": kind,
+            "submission_id": submission_id,
+            "predictions": predictions
+        })
+    return all_predictions
+
+
 def main(args):
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -17,39 +39,27 @@ def main(args):
     targets = targets.sort_index()
     volume = data.loc[data["split"] == "test", "volume"].sort_index()
 
-    files = filter(lambda x: x.name.endswith(".csv") and not x.name.startswith("excluded"), os.scandir(args.predictions_dir))
-    all_predictions = []
-    for f in files:
-        group, name, submission_id = os.path.splitext(f.name)[0].split("_")
-        predictions = pd.read_csv(f.path, index_col="Study ID").sort_index()
+    all_predictions = load_predictions(args.predictions_dir)
 
-        assert (targets.index == predictions.index).all()
-        if "survival_event" not in predictions:
-            predictions["survival_event"] = predictions["binary"]
-
-        all_predictions.append({
-            "group": group,
-            "name": name,
-            "submission_id": submission_id,
-            "predictions": predictions
-        })
-
-    challenge_predictions = pd.concat([p["predictions"].reset_index() for p in all_predictions if p["group"] == "challenge"])
+    # create ensemble submission by averaging predictions
+    challenge_predictions = pd.concat([
+        p["predictions"].reset_index()
+        for p in all_predictions if p["group"] == "challenge"
+    ])
     ensemble_predictions = challenge_predictions.groupby("Study ID").mean()
     all_predictions.append({
         "group": "challenge",
-        "name": "combined",
+        "kind": "combined",
         "submission_id": "ensemble",
         "predictions": ensemble_predictions
     })
 
-    ensemble_predictions.to_csv(os.path.join(args.predictions_dir, "challenge_combined_ensemble.csv"))
-
+    # compute metrics for all submissions (including ensemble)
     results = []
     for p in all_predictions:
-        group, name, submission_id, predictions = p["group"], p["name"], p["submission_id"], p["predictions"]
+        group, kind, submission_id, predictions = p["group"], p["kind"], p["submission_id"], p["predictions"]
 
-        cur_res = {"group": group, "name": name, "submission_id": submission_id}
+        cur_res = {"group": group, "kind": kind, "submission_id": submission_id}
         if "binary" in predictions:
             metrics_binary = evaluate_binary(targets["target_binary"],
                                              predictions["binary"],
@@ -73,6 +83,8 @@ def main(args):
         cur_res.update(metrics_survival)
         results.append(cur_res)
 
+    # save ensemble predictions and results
+    ensemble_predictions.to_csv(os.path.join(args.predictions_dir, "challenge_combined_ensemble.csv"))
     pd.DataFrame(results).to_csv(os.path.join(args.output_dir, "metrics.csv"), index=False)
 
 
@@ -86,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument("output_dir", type=str,
                         help=("Path to directory where the computed metrics"
                               "and figures will be saved."))
-    parser.add_argument("--n_permutations", type=int, default=5000,
+    parser.add_argument("--n_permutations", type=int, default=10000,
                         help=("How many random permutations to use when"
                               "evaluating significance."))
     parser.add_argument("--n_jobs", type=int, default=1,
