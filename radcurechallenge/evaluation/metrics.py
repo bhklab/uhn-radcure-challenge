@@ -34,9 +34,9 @@ def permutation_test(y_true: np.ndarray,
 
     The p value is computed as
     ``1/(N+1) * (sum(s(y, y_pred) >= s(perm(y), perm(y_pred)) for _ in range(N)) + 1)``
-    where `s` is the performance metric and `perm` denotes a random permutation. In words,
-    it is the estimated probability that a random prediction would give score at least
-    as good as the actual prediction.
+    where `s` is the performance metric and `perm` denotes a random
+    permutation. In words, it is the estimated probability that a random
+    prediction would give score at least as good as the actual prediction.
 
     Parameters
     ----------
@@ -74,7 +74,8 @@ def permutation_test(y_true: np.ndarray,
                       **kwargs)
 
     if event_observed is not None:
-        estimate = metric(y_true, y_pred, event_observed=event_observed, **kwargs)
+        estimate = metric(y_true, y_pred,
+                          event_observed=event_observed, **kwargs)
         inner = inner_survival
     else:
         estimate = metric(y_true, y_pred, **kwargs)
@@ -93,6 +94,36 @@ def bootstrap_ci(y_true: np.ndarray,
                  stratify: Optional[np.ndarray] = None,
                  event_observed: Optional[np.ndarray] = None,
                  **kwargs) -> Tuple[float, float]:
+    """Compute the confidence interval for a metric value using stratified
+    bootstrap resampling.
+
+    Parameters
+    ----------
+    y_true : np.ndarray, shape=(n_samples,)
+        The ground truth values.
+    y_pred : np.ndarray, shape=(n_samples,)
+        The model predictions.
+    metric
+        The performance metric.
+    n_permutations, optional
+        How many random permutations to use. Larger values give more
+        accurate estimates but take longer to run.
+    n_jobs, optional
+        Number of parallel processes to use.
+    stratify
+        If an array of binary values is passed, perform stratified resampling
+        using the passed values for stratification. Otherwise no stratification
+        is performed.
+    event_observed, optional
+        Event indicator for survival metrics.
+    **kwargs
+        Additional keyword arguments passed to metric.
+
+    Returns
+    -------
+    tuple of 2 floats
+        The upper and lower bounds of the estimated confidence interval.
+    """
     def inner_survival():
         y_true_res, y_pred_res, event_observed_res = resample(y_true, y_pred, event_observed, stratify=stratify)
         return metric(y_true_res, y_pred_res, event_observed=event_observed_res, **kwargs)
@@ -297,9 +328,8 @@ def evaluate_survival(event_true: np.ndarray,
         The computed performance metrics.
     """
 
-    # evaluate predictions at time < 2 years
-    # to account for the shorter follow-up in the
-    # test set
+    # evaluate predictions at time < 2 years to account for the shorter
+    # follow-up in the test set
     event_observed = event_true.copy()
     event_observed[time_true > 2] = 0
     time_observed = np.clip(time_true, 0, 2)

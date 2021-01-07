@@ -8,6 +8,9 @@ from scipy.stats import spearmanr
 from .metrics import evaluate_binary, evaluate_survival
 
 
+np.random.seed(42)
+
+
 def load_predictions(predictions_dir: str):
     files = filter(lambda x: x.name.endswith(".csv") and not x.name.startswith("excluded"),
                    os.scandir(predictions_dir))
