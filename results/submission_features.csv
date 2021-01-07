@@ -1,0 +1,16 @@
+submission_id,emr_data,image,engineered_features,volume,binary_classifier,proportional_hazards,multitask,convnet,mlp,linear,model_type
+5e515f3,1,0,0,1,0,0,1,0,1,0,MTLR
+c985b3d,1,0,1,1,1,1,0,0,0,1,Fuzzy logistic regression
+c927742,1,0,0,1,1,1,0,0,0,1,Fuzzy logistic regression
+e943420,1,1,0,0,1,0,0,1,0,0,3D convnet
+c22638c,1,0,0,0,0,0,1,0,1,0,MTLR
+fcb1e61,1,1,0,0,1,0,0,1,0,0,2D convnet
+a4c8caa,1,1,0,0,0,0,1,1,0,0,3D convnet + MTLR
+8e48339,1,0,0,0,1,0,0,0,1,0,MLP
+60f36db,0,1,0,0,0,0,1,1,0,0,3D convnet + MTLR
+ef556b4,0,1,0,0,1,0,0,1,0,0,2D convnet
+4e7d2ea,0,1,0,0,1,0,0,1,0,0,3D convnet
+5af6c56,0,0,1,1,1,1,0,0,0,1,Fuzzy logistic regression
+clinical,1,0,0,0,1,1,0,0,0,1,Baseline clinical
+volume,0,0,0,1,1,1,0,0,0,1,Baseline volume
+radiomics,0,0,1,0,1,1,0,0,0,1,Baseline radiomics

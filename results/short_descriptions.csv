@@ -1,0 +1,13 @@
+submission_id,description
+5e515f3,Deep multi-task logistic regression using EMR features and tumour volume.
+c985b3d,Fuzzy logistic regression (binary) or Cox proportional hazards model (risk prediction) using EMR features and engineered radiomic features.
+c927742,Fuzzy Logistic regression (binary) and Cox proportional hazards model (risk prediction) using EMR features and tumour volume. 
+e943420,3D convnet using cropped image patch around the tumour with EMR features concatenated before binary classification layer.
+c22638c,Multi-task logistic regression using EMR features.
+fcb1e61,2D convnet using largest GTV image and contour slices with EMR features concatenated after additional non-linear encoding before binary classification layer.
+a4c8caa,3D DenseNet using cropped image patch around the tumour with EMR features concatenated before multi-task prediction layer.
+8e48339,Multi-layer perceptron (MLP) with SELU activation and binary output layer using EMR features.
+60f36db,Two-stream 3D DenseNet with multi-task prediction layer using cropped patch around the tumour and additional downsampled context patch.
+ef556b4,2D convnet using largest GTV image and contour slices and binary output layer.
+4e7d2ea,3D convnet using cropped image patch around the tumour and binary output layer.
+5af6c56,Fuzzy logistic regression (binary) and Cox proportional hazards model (risk prediction) using engineered radiomic features.
