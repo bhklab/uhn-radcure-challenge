@@ -10,25 +10,10 @@ from .base import SimpleBaseline
 np.random.seed(42)
 
 
-def main(args):
-    if not os.path.exists(args.output_path):
-        os.makedirs(args.output_path)
-
-    clinical_columns = [
-        "age at dx",
-        "Sex_Male",
-        "T Stage_T3/4",
-        "N Stage_N1",
-        "N Stage_N2",
-        "N Stage_N3",
-        "HPV Combined_1.0",
-        "target_binary",
-        "survival_time",
-        "death",
-    ]
-    radiomics_columns = "firstorder|shape|glcm|glszm|glrlm|gldm|ngtdm"
-
+def load_clinical_data(path: str) -> pd.DataFrame:
+    """Load and preprocess data for the clinical baseline model."""
     clinical = pd.read_csv(args.clinical_data_path)
+
     # binarize T stage as T1/2 = 0, T3/4 = 1
     clinical["T Stage"] = clinical["T Stage"].map({
         "T1":     "T1/2",
@@ -61,7 +46,28 @@ def main(args):
                                        "N Stage",
                                        "HPV Combined"],
                               drop_first=True)
+    return clinical
 
+
+def main(args):
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+
+    clinical_columns = [
+        "age at dx",
+        "Sex_Male",
+        "T Stage_T3/4",
+        "N Stage_N1",
+        "N Stage_N2",
+        "N Stage_N3",
+        "HPV Combined_1.0",
+        "target_binary",
+        "survival_time",
+        "death",
+    ]
+    radiomics_columns = "firstorder|shape|glcm|glszm|glrlm|gldm|ngtdm"
+
+    clinical = load_clinical_data(args.clinical_data_path)
     radiomics = pd.read_csv(args.radiomics_data_path)
 
     baselines = {
@@ -80,6 +86,7 @@ def main(args):
     }
 
     test_ids = clinical.loc[clinical["split"] == "test", "Study ID"]
+    selected_features = []
     for name, baseline in baselines.items():
         pred = baseline.get_test_predictions()
         survival_time = pred.pop("survival_time")
@@ -88,6 +95,13 @@ def main(args):
 
         out_path = os.path.join(args.output_path, f"baseline_{name}.csv")
         pd.DataFrame(pred, index=test_ids).to_csv(out_path)
+
+        selected_features.append({"name": name,
+                                  "selected_binary": baseline.selected_features_binary_,
+                                  "selected_survival": baseline.selected_features_survival_})
+
+    pd.DataFrame(selected_features).to_csv(
+        os.path.join(args.output_path, "selected_features.csv"))
 
 
 if __name__ == "__main__":
@@ -100,8 +114,6 @@ if __name__ == "__main__":
                         help="Path where the results will be saved.")
     parser.add_argument("--max_features_to_select", type=int, default=10,
                         help="Maximum number of features in the radiomics model.")
-    parser.add_argument("--n_permutations", type=int, default=5000,
-                        help="How many random permutations to use when evaluating significance.")
     parser.add_argument("--n_jobs", type=int, default=1,
                         help="Number of parallel processes to use.")
 

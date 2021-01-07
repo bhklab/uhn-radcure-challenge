@@ -45,7 +45,7 @@ class SelectMRMRe(BaseEstimator):
             The number of features to select.
         var_prefilter_thresh
             If > 0, features with variance < `var_prefilter_thresh` will be
-            dropped before performing selection
+            dropped before performing selection.
         target_col
             The name of the target column. If None, the targets must be passed
             to the `fit` method.
@@ -60,14 +60,14 @@ class SelectMRMRe(BaseEstimator):
         """Perform feature selection.
 
         The selected features will be saved in order to enable selection on
-        new data using the `transform` method.
+        new data using the `transform` method. Note that pyMRMRe expects a
+        Pandas DataFrame in contrast with most scikit-learn estimators.
 
         Parameters
         ----------
         X
-            The feature matrix. Note that pyMRMRe expects a pandas DataFrame
-            in contrast with most scikit-learn estimators. If `self.target_col`
-            is not None, the dataframe should also contain the target column.
+            The feature matrix.If `self.target_col` is not None, the dataframe
+            should also contain the target column.
         y
             The target vector. Only used if `self.target_col` is None.
 
@@ -82,6 +82,7 @@ class SelectMRMRe(BaseEstimator):
             if isinstance(y, (pd.DataFrame, pd.Series)):
                 X_select = X_select.set_index(y.index)
 
+        # filter out low variance features
         if self.var_prefilter_thresh > 0:
             X_select = X_select.loc[:, X_select.var(axis=0) > self.var_prefilter_thresh]
 
@@ -93,8 +94,8 @@ class SelectMRMRe(BaseEstimator):
             target_col = "target"
             target_idx = None
 
-        # NOTE survival data is treated as continuous here, since pyMRMRe does
-        # not seem to handle it properly yet.
+        # NOTE survival data is treated as continuous here, since pyMRMRe
+        # v XXX does not seem to handle it properly yet.
         if np.issubdtype(y.dtype, np.integer):
             target_type = 1
         else:
@@ -117,14 +118,15 @@ class SelectMRMRe(BaseEstimator):
                   ) -> pd.DataFrame:
         """Perform feature selection on a dataset.
 
-        The features selected in the fit call are used.
+        The features selected in the fit call are used. Note that pyMRMRe
+        expects a Pandas DataFrame in contrast with most scikit-learn
+        estimators.
 
         Parameters
         ----------
         X
-            The feature matrix. Note that pyMRMRe expects a pandas DataFrame
-            in contrast with most scikit-learn estimators. If `self.target_col`
-            is not None, the dataframe should also contain the target column.
+            The feature matrix. If `self.target_col` is not None, the dataframe
+            should also contain the target column.
         y
             The target vector. This argument is only included for sklearn
             pipeline compatibility and is otherwise ignored.
@@ -149,9 +151,8 @@ class SelectMRMRe(BaseEstimator):
         Parameters
         ----------
         X
-            The feature matrix. Note that pyMRMRe expects a pandas DataFrame
-            in contrast with most scikit-learn estimators. If `self.target_col`
-            is not None, the dataframe should also contain the target column.
+            The feature matrix. If `self.target_col` is not None, the dataframe
+            should also contain the target column.
         y
             The target vector. This argument is only included for sklearn
             pipeline compatibility and is otherwise ignored.
@@ -208,11 +209,6 @@ class BinaryModel:
         """
         self.max_features_to_select = max_features_to_select
         self.n_jobs = n_jobs
-        # transformer = ColumnTransformer([('scale', StandardScaler(),
-        #                                   make_column_selector(dtype_include=np.number)),
-        #                                  ('onehot',
-        #                                   OneHotEncoder(drop="first", sparse=False),
-        #                                   make_column_selector(dtype_include=object))])
         transformer = ColumnTransformer([('scale', StandardScaler(),
                                           make_column_selector(dtype_include=np.floating))],
                                         remainder="passthrough")
@@ -221,10 +217,13 @@ class BinaryModel:
                                         solver="saga",
                                         max_iter=5000,
                                         n_jobs=self.n_jobs)
+
         if self.max_features_to_select > 0:
             select = SelectMRMRe()
             pipe = make_pipeline(transformer, select, logistic)
-            param_grid = {"selectmrmre__n_features": np.arange(2, self.max_features_to_select + 1)}
+            param_grid = {
+                "selectmrmre__n_features": np.arange(2, self.max_features_to_select + 1)
+            }
             self.model = GridSearchCV(pipe, param_grid, n_jobs=self.n_jobs)
         else:
             self.model = make_pipeline(transformer, logistic)
@@ -292,9 +291,6 @@ class SurvivalModel:
         self.transformer = ColumnTransformer([('scale', StandardScaler(),
                                                 make_column_selector(dtype_include=np.floating))],
                                              remainder="passthrough")
-                                               # ('onehot',
-                                               #  OneHotEncoder(drop="first", sparse=False),
-                                               #  make_column_selector(dtype_include=object))])
         CoxRegression = sklearn_adapter(CoxPHFitter,
                                         event_col="death",
                                         predict_method="predict_partial_hazard")
@@ -302,15 +298,14 @@ class SurvivalModel:
         param_grid = {"sklearncoxphfitter__penalizer": 10.0**np.arange(-2, 3)}
         if self.max_features_to_select > 0:
             select = SelectMRMRe(target_col="death")
-            # can't put CoxRegression in the pipeline since sklearn
+            # we can't put CoxRegression in the pipeline since sklearn
             # transformers cannot return data frames
             pipe = make_pipeline(select, cox)
             param_grid["selectmrmre__n_features"] = np.arange(2, self.max_features_to_select + 1)
         else:
             pipe = make_pipeline(cox)
 
-        # XXX lifelines sklearn adapter does not support parallelization
-        # for now, need to find a better workaround
+        # NOTE lifelines sklearn adapter does not support parallelization
         self.model = GridSearchCV(pipe, param_grid, n_jobs=1)
 
     def fit(self, X: pd.DataFrame, y: pd.DataFrame) -> "SurvivalModel":
@@ -357,8 +352,8 @@ class SurvivalModel:
         X
             Prediction inputs with samples as rows and features as columns.
         times, optional
-            Time bins to use for survival function prediction. If None (default),
-            uses monthly bins up to 2 years.
+            Time bins to use for survival function prediction. If None
+            (default), uses monthly bins up to 2 years.
 
         Returns
         -------
@@ -377,8 +372,7 @@ class SurvivalModel:
         X_transformed["death"] = death
 
         # We need to change the predict method of the lifelines model
-        # while still running the whole pipeline.
-        # This is a somewhat ugly hack, there might be a better way to do it.
+        # while still running the whole pipeline
         setattr(self.model.best_estimator_["sklearncoxphfitter"],
                 "_predict_method", "predict_survival_function")
         # GridSearchCV.predict does not support keyword arguments
@@ -458,6 +452,17 @@ class SimpleBaseline:
         data_train, data_test = data[data["split"] == "training"], data[data["split"] == "test"]
         return data_train[columns], data_test[columns]
 
+    def _get_selected_feature_names(self, X_train, model):
+        if isinstance(model, GridSearchCV):
+            estimator = model.model.best_estimator_
+        else:
+            estimator = model.model
+        if "selectmrmre" in estimator:
+            feature_names = X_train.columns[estimator["selectmrmre"].feature_indices_].tolist()
+        else:
+            feature_names = X_train.columns.tolist()
+        return feature_names
+
     def _train_and_predict(self,
                            target: str
                            ) -> Union[pd.Series, Tuple[pd.Series, pd.Series]]:
@@ -489,6 +494,9 @@ class SimpleBaseline:
 
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
+        setattr(self, f"selected_features_{target}_",
+                self._get_selected_feature_names(X_train, model))
+
         return y_pred
 
     def get_test_predictions(self) -> Dict[str, pd.Series]:
