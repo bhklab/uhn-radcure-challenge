@@ -64,8 +64,8 @@ In all basic models, logistic regression was used for binarized 2-year survival 
 The code used to train the baseline models can be found in [radcurechallenge/baselines](radcurechallenge/baselines). Feel free to use it as a starting point for your submission.
 
 ### Baseline results
-*Note:* higher is better, except for IBS. P values were computed from 10,000 iterations of randomized permutation test. For random predictions, AUC = CI = .5, while AP depends on the class balance.
-| Model     | ROC AUC (binary) | AP (binary)     | CI (survival)   |
+*Note:* higher is better. P values were computed from 10,000 iterations of randomized permutation test. For random predictions, AUC = C-index = .5, while AP depends on the class balance.
+| Model     | ROC AUC (binary) | AP (binary)     | C-index (survival)   |
 |-----------|------------------|-----------------|-----------------|
 | radiomics | 0.71 (p < .001)  | 0.33 (p < .001) | 0.73 (p < .001) |
 | volume    | 0.71 (p < .001)  | 0.32 (p < .001) | 0.71 (p < .001) |
