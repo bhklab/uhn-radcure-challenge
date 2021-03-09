@@ -123,6 +123,7 @@ class DeepMTLR(pl.LightningModule):
 
         full_dataset = RadcureDataset(self.hparams.root_directory,
                                       self.hparams.emr_data_path,
+                                      time_bins=[],
                                       train=True,
                                       transform=transform)
 

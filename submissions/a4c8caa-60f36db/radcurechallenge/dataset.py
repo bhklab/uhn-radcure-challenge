@@ -119,7 +119,7 @@ class RadcureDataset(Dataset):
             self.targets = self.emr_data[["survival_time", "death", "target_binary"]]
         else:
             self.targets = None
-        self.emr_data.drop(["survival_time", "death",
+        self.emr_data.drop(["survival_time", "death", "cancer_death",
                             "target_binary", "split"],
                            axis=1, errors="ignore", inplace=True)
 
