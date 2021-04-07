@@ -11,10 +11,11 @@ def make_data(path, split="training"):
     data = (pd.read_csv(path, index_col="Study ID")
             .query("split == @split")
             .drop(["cancer_death", "split"], axis=1, errors="ignore"))
-    if split == "training":
-        data = data.rename(columns={"death": "event", "survival_time": "time"})
-        # Convert time to months
-        data["time"] *= 12
+    data = data[data.viral_status == 1]
+    # if split == "training":
+    data = data.rename(columns={"death": "event", "survival_time": "time"})
+    # Convert time to months
+    data["time"] *= 12
     # binarize T stage as T1/2 = 0, T3/4 = 1
     data["T Stage"] = data["T Stage"].map(
         lambda x: "T1/2" if x in ["T1", "T1a", "T1b", "T2"] else "T3/4",
@@ -41,7 +42,7 @@ def make_data(path, split="training"):
                               "Stage",
                               "ECOG"
                           ])
-    return data
+    return data.drop('viral_status', axis=1)
 
 
 def encode_survival(time, event, bins):
@@ -141,7 +142,7 @@ def make_time_bins(times, num_bins=None, use_quantiles=True, event=None):
     return bins
 
 
-def normalize(data, mean=None, std=None, skip_cols=[]):
+def normalize(data, mean=None, std=None, skip_cols=[], nan_fill=None):
     """Normalizes the columns of Pandas DataFrame to zero mean and unit
     standard deviation."""
     if mean is None:
@@ -151,4 +152,7 @@ def normalize(data, mean=None, std=None, skip_cols=[]):
     if skip_cols is not None:
         mean[skip_cols] = 0
         std[skip_cols] = 1
-    return (data - mean) / std, mean, std
+    data_norm = (data - mean) / std
+    if nan_fill is not None:
+        data_norm = data_norm.fillna(nan_fill)
+    return data_norm, mean, std

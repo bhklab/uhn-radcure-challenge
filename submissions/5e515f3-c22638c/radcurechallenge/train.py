@@ -137,7 +137,8 @@ def main(args):
         skip_cols=["time", "event", "target_binary"])
     data_test, *_ = normalize(
         data_test, mean=mean_train, std=std_train,
-        skip_cols=["time", "event", "target_binary"])
+        skip_cols=["time", "event", "target_binary"],
+        nan_fill=0)
     data_test = data_test[mean_train.index]
     time_bins = make_time_bins(data_train["time"], event=data_train["event"])
 
