@@ -11,8 +11,6 @@ def make_data(path, split="training"):
     data = (pd.read_csv(path, index_col="Study ID")
             .query("split == @split")
             .drop(["cancer_death", "split"], axis=1, errors="ignore"))
-    data = data[data.viral_status == 1]
-    # if split == "training":
     data = data.rename(columns={"death": "event", "survival_time": "time"})
     # Convert time to months
     data["time"] *= 12
@@ -42,7 +40,7 @@ def make_data(path, split="training"):
                               "Stage",
                               "ECOG"
                           ])
-    return data.drop('viral_status', axis=1)
+    return data
 
 
 def encode_survival(time, event, bins):
