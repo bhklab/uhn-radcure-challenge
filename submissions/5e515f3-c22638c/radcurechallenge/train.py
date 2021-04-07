@@ -117,16 +117,6 @@ def make_test_predictions(model, data_test, time_bins, out_path):
 
 
 # ranges for LR and dropout were selected based on previous experiments
-# PARAM_DISTS = {
-#     "hidden_sizes": [[32], [64], [128],
-#                      [32, 32], [64, 64], [128, 128],
-#                      [64, 32], [128, 32]],
-#     "dropout": uniform(0., .6),
-#     "lr": uniform(.001, .01),
-#     "batch_size": [128, 256, 512, 1024],
-#     "l2_reg": np.logspace(-2, 3, 6),
-#     "weight_decay": loguniform(1e-6, 1e-3),
-# }
 PARAM_DISTS = {
     "hidden_sizes": [[32], [64], [128],
                      [32]*2, [64]*2, [128]*2,
@@ -140,9 +130,8 @@ PARAM_DISTS = {
 
 def main(args):
     # prepare data
-    data_dir = "/Users/michalmacbook/Documents/toronto/bhklab/projects/radcure_competition/uhn-radcure-challenge/data"
-    data_train = make_data(f"{data_dir}/clinical_train_only_with_volume.csv", split="training")
-    data_test = make_data(f"{data_dir}/clinical_test.csv", split="test")
+    data_train = make_data(args.clinical_data_path, split="training")
+    data_test = make_data(args.clinical_data_path, split="test")
     data_train, mean_train, std_train = normalize(
         data_train,
         skip_cols=["time", "event", "target_binary"])
@@ -186,6 +175,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
+    parser.add_argument("clinical_data_path", type=str, default="",
+                        help="Path to CSV file with clinical data and volume.")
     parser.add_argument("--hparams_path", type=str, default="",
                         help="Path to JSON file with hyperparameter configuration.")
     parser.add_argument("--hparam_samples", type=int, default=60,

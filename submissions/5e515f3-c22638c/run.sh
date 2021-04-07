@@ -2,11 +2,14 @@
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate radcure-challenge
 
+# replace with path to CSV with full clinical data
+CLINICAL_DATA_PATH=""
+
 # EMR-only submission
-python -m radcurechallenge.train
+python -m radcurechallenge.train ${CLINICAL_DATA_PATH}
 
 # combined-volume submission
-python -m radcurechallenge.train --combined
+python -m radcurechallenge.train ${CLINICAL_DATA_PATH} --combined
 
 # added by organizers
 EMR_SUBMISSION_ID="c22638c"
