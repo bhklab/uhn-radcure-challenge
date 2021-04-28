@@ -131,7 +131,10 @@ PARAM_DISTS = {
 def main(args):
     # prepare data
     data_train = make_data(args.clinical_data_path, split="training")
-    data_test = make_data(args.clinical_data_path, split="test")
+    if args.test_data_path:
+        data_test = make_data(args.test_data_path)
+    else:
+        data_test = make_data(args.clinical_data_path, split="test")
     data_train, mean_train, std_train = normalize(
         data_train,
         skip_cols=["time", "event", "target_binary"])
@@ -178,6 +181,8 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("clinical_data_path", type=str, default="",
                         help="Path to CSV file with clinical data and volume.")
+    parser.add_argument("--test_data_path", type=str, default="",
+                        help="Path to CSV with test clinical data and volume.")
     parser.add_argument("--hparams_path", type=str, default="",
                         help="Path to JSON file with hyperparameter configuration.")
     parser.add_argument("--hparam_samples", type=int, default=60,

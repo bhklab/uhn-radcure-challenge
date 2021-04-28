@@ -6,14 +6,16 @@ import torch.nn as nn
 from torch.optim import Adam
 
 
-def make_data(path, split="training"):
+def make_data(path, split=None):
     """Load and preprocess the data."""
-    data = (pd.read_csv(path, index_col="Study ID")
-            .query("split == @split")
+    data = pd.read_csv(path, index_col="Study ID")
+    if split:
+        data = data.query("split == @split")
+    data = (data.rename(columns={"death": "event", "survival_time": "time"})
             .drop(["cancer_death", "split"], axis=1, errors="ignore"))
-    data = data.rename(columns={"death": "event", "survival_time": "time"})
     # Convert time to months
-    data["time"] *= 12
+    if "time" in data:
+        data["time"] *= 12
     # binarize T stage as T1/2 = 0, T3/4 = 1
     data["T Stage"] = data["T Stage"].map(
         lambda x: "T1/2" if x in ["T1", "T1a", "T1b", "T2"] else "T3/4",
@@ -25,20 +27,21 @@ def make_data(path, split="training"):
         na_action="ignore")
     data["ECOG"] = data["ECOG"].map(
         lambda x: ">0" if x > 0 else "0", na_action="ignore")
+    drop_first = split == "training"
     data = pd.get_dummies(data,
                           columns=[
                               "Sex",
                               "N Stage",
                               "Disease Site"
                           ],
-                          drop_first=True)
+                          drop_first=drop_first)
     # keep all indicator columns in case of missing values
     data = pd.get_dummies(data,
                           columns=[
                               "HPV Combined",
                               "T Stage",
                               "Stage",
-                              "ECOG"
+                              "ECOG",
                           ])
     return data
 
