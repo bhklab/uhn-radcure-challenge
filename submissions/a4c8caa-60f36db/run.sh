@@ -62,5 +62,5 @@ python -m radcurechallenge.train\
 # added by organizers
 RADIOMICS_SUBMISSION_ID="60f36db"
 COMBINED_SUBMISSION_ID="a4c8caa"
-cp radiomics.csv ../../predictions/challenge_${RADIOMICS_SUBMISSION_ID}.csv
-cp combined.csv ../../predictions/challenge_${COMBINED_SUBMISSION_ID}.csv
+cp radiomics.csv ../../predictions/challenge_radiomics_${RADIOMICS_SUBMISSION_ID}.csv
+cp combined.csv ../../predictions/challenge_combined_${COMBINED_SUBMISSION_ID}.csv

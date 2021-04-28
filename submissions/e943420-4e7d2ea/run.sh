@@ -6,7 +6,7 @@
 . ./shell_scripts/predict_dual.sh
 
 # added by organizers
-RADIOMICS_SUBMISSION_ID="c22638c"
-COMBINED_SUBMISSION_ID="5e515f3"
-cp data/predictions/xl_1079790.csv ../../predictions/challenge_${RADIOMICS_SUBMISSION_ID}.csv
-cp data/predictions/dual.csv ../../predictions/challenge_${COMBINED_SUBMISSION_ID}.csv
+RADIOMICS_SUBMISSION_ID="4e7d2ea"
+COMBINED_SUBMISSION_ID="e943420"
+cp data/predictions/xl_1079790.csv ../../predictions/challenge_radiomics_${RADIOMICS_SUBMISSION_ID}.csv
+cp data/predictions/dual.csv ../../predictions/challenge_combined_${COMBINED_SUBMISSION_ID}.csv

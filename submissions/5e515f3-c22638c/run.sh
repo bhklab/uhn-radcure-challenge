@@ -14,5 +14,5 @@ python -m radcurechallenge.train ${CLINICAL_DATA_PATH} --combined
 # added by organizers
 EMR_SUBMISSION_ID="c22638c"
 COMBINED_SUBMISSION_ID="5e515f3"
-cp predictions_emr.csv ../../predictions/challenge_${EMR_SUBMISSION_ID}.csv
-cp predictions_combined.csv ../../predictions/challenge_${COMBINED_SUBMISSION_ID}.csv
+cp predictions_emr.csv ../../predictions/challenge_EMR_${EMR_SUBMISSION_ID}.csv
+cp predictions_combined.csv ../../predictions/challenge_combined_${COMBINED_SUBMISSION_ID}.csv
