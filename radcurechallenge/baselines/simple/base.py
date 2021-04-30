@@ -453,7 +453,7 @@ class SimpleBaseline:
         return data_train[columns], data_test[columns]
 
     def _get_selected_feature_names(self, X_train, model):
-        if isinstance(model, GridSearchCV):
+        if isinstance(model.model, GridSearchCV):
             estimator = model.model.best_estimator_
         else:
             estimator = model.model
