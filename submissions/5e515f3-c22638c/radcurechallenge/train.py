@@ -152,22 +152,34 @@ def main(args):
     else:
         submission_type = "combined"
 
-    if args.hparams_path:
-        with open(args.hparams_path, "r") as f:
-            hparams = json.load(f)
-        model = train_mtlr(
-            data_train.drop("target_binary", axis=1), time_bins,
-            num_epochs=args.num_epochs,
-            verbose=not args.quiet, **hparams)
+    if args.weights_load_path:
+        model = torch.load(args.weights_load_path)
+        model.eval()
+        if not args.quiet:
+            print(f"loaded saved weights from {args.weights_load_path}")
     else:
-        # find best hyperparameters and train the model
-        model, best_hparams = hyperparam_search(
-            data_train, time_bins, PARAM_DISTS,
-            num_samples=args.hparam_samples, num_epochs=args.num_epochs,
-            verbose=not args.quiet)
+        if args.hparams_path:
+            with open(args.hparams_path, "r") as f:
+                hparams = json.load(f)
+            model = train_mtlr(
+                data_train.drop("target_binary", axis=1), time_bins,
+                num_epochs=args.num_epochs,
+                verbose=not args.quiet, **hparams)
+        else:
+            # find best hyperparameters and train the model
+            model, best_hparams = hyperparam_search(
+                data_train, time_bins, PARAM_DISTS,
+                num_samples=args.hparam_samples, num_epochs=args.num_epochs,
+                verbose=not args.quiet)
 
-        with open(f"./best_hparams_{submission_type}.json", "w") as f:
-            json.dump(best_hparams, f)
+            with open(f"./best_hparams_{submission_type}.json", "w") as f:
+                json.dump(best_hparams, f)
+
+        # save trained weights
+        if args.weights_save_path:
+            torch.save(model.cpu(), args.weights_save_path)
+            if not args.quiet:
+                print(f"saved weights to {args.weights_save_path}")
 
     # generate challenge submission
     out_path = f"./predictions_{submission_type}.csv"
@@ -194,5 +206,9 @@ if __name__ == '__main__':
                              "volume as input feature) or EMR-only (default).")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Suppress output during training.")
+    parser.add_argument("--weights_save_path", type=str, default="model.pt",
+                        help="Where to save the trained model weights.")
+    parser.add_argument("--weights_load_path", type=str, default="",
+                        help="Path to pretrained model checkpoint.")
     args = parser.parse_args()
     main(args)
