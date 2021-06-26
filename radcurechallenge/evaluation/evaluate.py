@@ -64,8 +64,8 @@ def main(args):
 
         cur_res = {"group": group, "kind": kind, "submission_id": submission_id}
         if "binary" in predictions:
-            metrics_binary = evaluate_binary(targets["target_binary"],
-                                             predictions["binary"],
+            metrics_binary = evaluate_binary(targets["target_binary"].values,
+                                             predictions["binary"].values,
                                              n_permutations=args.n_permutations,
                                              n_jobs=args.n_jobs)
             cur_res.update(metrics_binary)
@@ -77,9 +77,9 @@ def main(args):
             time_pred = np.array(predictions.filter(like="survival_time").values)
         else:
             time_pred = None
-        metrics_survival = evaluate_survival(targets["death"],
-                                             targets["survival_time"],
-                                             predictions["survival_event"],
+        metrics_survival = evaluate_survival(targets["death"].values,
+                                             targets["survival_time"].values,
+                                             predictions["survival_event"].values,
                                              time_pred,
                                              n_permutations=args.n_permutations,
                                              n_jobs=args.n_jobs)
