@@ -4,7 +4,7 @@ joblib==0.14.1
 jupyter==1.0.0
 lifelines==0.24.5
 matplotlib==3.2.1
-notebook==5.7.10
+notebook==6.4.10
 numpy==1.18.1
 pandas==1.0.3
 pip==20.1
