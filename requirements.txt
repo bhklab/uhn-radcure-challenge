@@ -20,6 +20,6 @@ pymrmre==1.0.0
 pytorch-lightning==0.9.0
 pyradiomics==2.2.0
 tensorboard==2.1.1
-tensorflow==2.1.0
+tensorflow==2.6.4
 tensorflow-estimator==2.1.0
 tqdm==4.46.0
