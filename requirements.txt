@@ -1,6 +1,6 @@
 cython==0.29.15
 ipython==7.13.0
-joblib==0.14.1
+joblib==1.2.0
 jupyter==1.0.0
 lifelines==0.24.5
 matplotlib==3.2.1
